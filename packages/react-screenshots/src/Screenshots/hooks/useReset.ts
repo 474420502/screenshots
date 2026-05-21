@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { resetScreenshotsState } from '../stateTransitions';
 import useBounds from './useBounds';
 import useCursor from './useCursor';
 import useDispatcher from './useDispatcher';
@@ -18,12 +19,17 @@ export default function useReset(): ResetDispatcher {
 
   const reset = useCallback(
     (source?: string) => {
-      emitter.reset();
-      historyDispatcher.reset();
-      boundsDispatcher.reset();
-      cursorDispatcher.reset();
-      operatioDispatcher.reset();
-      emitEvent?.('reset', { source });
+      resetScreenshotsState(
+        {
+          resetEmitter: emitter.reset,
+          resetHistory: historyDispatcher.reset,
+          resetBounds: boundsDispatcher.reset,
+          resetCursor: cursorDispatcher.reset,
+          resetOperation: operatioDispatcher.reset,
+          emitEvent,
+        },
+        source,
+      );
     },
     [
       emitEvent,

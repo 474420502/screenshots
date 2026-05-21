@@ -1,3 +1,4 @@
+import { defaultOperationLayout } from '../operationItems';
 import Arrow from './Arrow';
 import Brush from './Brush';
 import Cancel from './Cancel';
@@ -9,6 +10,11 @@ import Redo from './Redo';
 import Save from './Save';
 import Text from './Text';
 import Undo from './Undo';
+
+export type {
+  BuiltinOperationKey,
+  OperationLayoutItem,
+} from '../operationItems';
 
 export const builtinOperationComponents = {
   Rectangle,
@@ -23,26 +29,6 @@ export const builtinOperationComponents = {
   Cancel,
   Ok,
 };
-
-export type BuiltinOperationKey = keyof typeof builtinOperationComponents;
-
-export type OperationLayoutItem = BuiltinOperationKey | '|';
-
-export const defaultOperationLayout: OperationLayoutItem[] = [
-  'Rectangle',
-  'Ellipse',
-  'Arrow',
-  'Brush',
-  'Text',
-  'Mosaic',
-  '|',
-  'Undo',
-  'Redo',
-  '|',
-  'Save',
-  'Cancel',
-  'Ok',
-];
 
 export default defaultOperationLayout.map((item) => {
   if (item === '|') {

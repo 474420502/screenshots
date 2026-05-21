@@ -7,6 +7,13 @@ import ScreenshotsBackground from './ScreenshotsBackground';
 import ScreenshotsCanvas from './ScreenshotsCanvas';
 import ScreenshotsContext from './ScreenshotsContext';
 import ScreenshotsOperations from './ScreenshotsOperations';
+import {
+  createEmptyHistory,
+  resetHistoryState,
+  resetScreenshotsState,
+  setProgrammaticBounds,
+  setTrackedOperation,
+} from './stateTransitions';
 import type {
   Bounds,
   Emitter,
@@ -59,10 +66,7 @@ export default function Screenshots({
   const image = useGetLoadedImage(url);
   const canvasContextRef = useRef<CanvasRenderingContext2D>(null);
   const emitterRef = useRef<Emitter>({});
-  const [history, setHistory] = useState<History>({
-    index: -1,
-    stack: [],
-  });
+  const [history, setHistory] = useState<History>(createEmptyHistory);
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [cursor, setCursor] = useState<string | undefined>('move');
   const [operation, setOperation] = useState<string | undefined>(undefined);
@@ -148,17 +152,43 @@ export default function Screenshots({
 
   const reset = useCallback(
     (source?: string) => {
-      emitterRef.current = {};
-      setHistory({
-        index: -1,
-        stack: [],
-      });
-      setBounds(null);
-      setCursor('move');
-      setOperation(undefined);
-      emitEvent('reset', { source });
+      resetScreenshotsState(
+        {
+          resetEmitter: () => {
+            emitterRef.current = {};
+          },
+          resetHistory: () => {
+            resetHistoryState({
+              setHistory: (nextHistory) => {
+                setHistory(nextHistory);
+              },
+              emitEvent,
+            });
+          },
+          resetBounds: () => {
+            setBounds(null);
+          },
+          resetCursor: () => {
+            setCursor('move');
+          },
+          resetOperation: () => {
+            setTrackedOperation(
+              {
+                setOperation: (targetOperation) => {
+                  setOperation(targetOperation);
+                },
+                emitEvent,
+              },
+              getSnapshot().operation,
+              undefined,
+            );
+          },
+          emitEvent,
+        },
+        source,
+      );
     },
-    [emitEvent],
+    [emitEvent, getSnapshot],
   );
 
   const actionContext = useMemo<ScreenshotsActionContext>(
@@ -167,14 +197,28 @@ export default function Screenshots({
       compose,
       reset,
       emit: emitEvent,
-      setBounds,
+      setBounds: (targetBounds: Bounds | null) => {
+        setProgrammaticBounds(
+          {
+            setBounds: (nextBounds) => {
+              setBounds(nextBounds);
+            },
+            emitEvent,
+          },
+          targetBounds,
+        );
+      },
       setOperation: (targetOperation?: string) => {
-        const previousOperation = getSnapshot().operation;
-        setOperation(targetOperation);
-        emitEvent('operationChange', {
-          operation: targetOperation,
-          previousOperation,
-        });
+        setTrackedOperation(
+          {
+            setOperation: (nextOperation) => {
+              setOperation(nextOperation);
+            },
+            emitEvent,
+          },
+          getSnapshot().operation,
+          targetOperation,
+        );
       },
     }),
     [getSnapshot, compose, reset, emitEvent],

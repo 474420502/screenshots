@@ -10,18 +10,16 @@ import React, {
 import useBounds from '../hooks/useBounds';
 import useStore from '../hooks/useStore';
 import {
-  builtinOperationComponents,
-  defaultOperationLayout,
-} from '../operations';
+  type ResolvedOperationLayoutItem,
+  resolveOperationLayout,
+} from '../operationItems';
+import { builtinOperationComponents } from '../operations';
 import ScreenshotsButton from '../ScreenshotsButton';
 import type {
   Bounds,
   Position,
   ScreenshotsActionContext,
   ScreenshotsOperationButtonItem,
-  ScreenshotsOperationDividerItem,
-  ScreenshotsOperationItem,
-  ScreenshotsOperationPosition,
 } from '../types';
 import './index.less';
 
@@ -31,108 +29,19 @@ export const ScreenshotsOperationsCtx = React.createContext<Bounds | null>(
 
 type ResolvedOperationItem =
   | {
-      type: 'builtin';
-      key: string;
-      Component: ComponentType;
-    }
+    type: 'builtin';
+    key: string;
+    Component: ComponentType;
+  }
   | {
-      type: 'divider';
-      key: string;
-    }
+    type: 'divider';
+    key: string;
+  }
   | {
-      type: 'custom';
-      key: string;
-      item: ScreenshotsOperationButtonItem;
-    };
-
-function isDividerItem(
-  item: ScreenshotsOperationItem,
-): item is ScreenshotsOperationDividerItem {
-  return item.type === 'divider';
-}
-
-function getPosition(
-  item: ScreenshotsOperationItem,
-): ScreenshotsOperationPosition {
-  return item.position ?? 'before-confirm';
-}
-
-function findOperationIndex(
-  items: ResolvedOperationItem[],
-  key: string,
-): number {
-  return items.findIndex((item) => item.key === key);
-}
-
-function getInsertIndex(
-  items: ResolvedOperationItem[],
-  position: ScreenshotsOperationPosition,
-): number {
-  if (position === 'start') {
-    return 0;
-  }
-  if (position === 'end') {
-    return items.length;
-  }
-  if (position === 'before-history') {
-    const index = findOperationIndex(items, 'Undo');
-    return index === -1 ? items.length : index;
-  }
-  if (position === 'before-confirm') {
-    const index = findOperationIndex(items, 'Save');
-    return index === -1 ? items.length : index;
-  }
-  if ('before' in position) {
-    const index = findOperationIndex(items, position.before);
-    return index === -1 ? items.length : index;
-  }
-  if ('after' in position) {
-    const index = findOperationIndex(items, position.after);
-    return index === -1 ? items.length : index + 1;
-  }
-  return items.length;
-}
-
-function resolveOperationLayout(
-  operationItems: ScreenshotsOperationItem[],
-): ResolvedOperationItem[] {
-  const items = defaultOperationLayout.map<ResolvedOperationItem>(
-    (operation, index) => {
-      if (operation === '|') {
-        return {
-          type: 'divider',
-          key: `builtin-divider-${index}`,
-        };
-      }
-
-      return {
-        type: 'builtin',
-        key: operation,
-        Component: builtinOperationComponents[operation],
-      };
-    },
-  );
-
-  operationItems.forEach((operationItem, index) => {
-    const position = getPosition(operationItem);
-    const insertIndex = getInsertIndex(items, position);
-    if (isDividerItem(operationItem)) {
-      items.splice(insertIndex, 0, {
-        type: 'divider',
-        key: operationItem.key ?? `custom-divider-${index}`,
-      });
-      return;
-    }
-
-    items.splice(insertIndex, 0, {
-      type: 'custom',
-      key: operationItem.key,
-      item: operationItem,
-    });
-  });
-
-  return items;
-}
+    type: 'custom';
+    key: string;
+    item: ScreenshotsOperationButtonItem;
+  };
 
 function resolveStateValue<T>(
   value: T | ((context: ScreenshotsActionContext) => T) | undefined,
@@ -192,14 +101,39 @@ function ScreenshotsCustomOperation({
   );
 }
 
+function mapResolvedOperationItems(
+  items: ResolvedOperationLayoutItem[],
+): ResolvedOperationItem[] {
+  return items.map((item) => {
+    if (item.type === 'builtin') {
+      return {
+        type: 'builtin',
+        key: item.key,
+        Component: builtinOperationComponents[item.key],
+      };
+    }
+
+    if (item.type === 'divider') {
+      return item;
+    }
+
+    return item;
+  });
+}
+
 export default memo(function ScreenshotsOperations(): ReactElement | null {
-  const { width, height, operationItems } = useStore();
+  const { actionContext, width, height, operationItems } = useStore();
   const [bounds] = useBounds();
   const [operationsRect, setOperationsRect] = useState<Bounds | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
-  const resolvedOperationItems = useMemo(
+  const validationSignatureRef = useRef('');
+  const resolvedOperationState = useMemo(
     () => resolveOperationLayout(operationItems),
     [operationItems],
+  );
+  const resolvedOperationItems = useMemo(
+    () => mapResolvedOperationItems(resolvedOperationState.items),
+    [resolvedOperationState.items],
   );
 
   const elRef = useRef<HTMLDivElement>(null);
@@ -211,6 +145,31 @@ export default memo(function ScreenshotsOperations(): ReactElement | null {
     e.preventDefault();
     e.stopPropagation();
   }, []);
+
+  useEffect(() => {
+    if (!resolvedOperationState.errors.length) {
+      validationSignatureRef.current = '';
+      return;
+    }
+
+    const signature = resolvedOperationState.errors
+      .map((error) => `${error.code}:${error.key ?? ''}:${error.anchor ?? ''}`)
+      .join('|');
+
+    if (validationSignatureRef.current === signature) {
+      return;
+    }
+
+    validationSignatureRef.current = signature;
+
+    resolvedOperationState.errors.forEach((error) => {
+      console.warn(`[screenshots] ${error.message}`);
+      actionContext.emit('error', {
+        error: new Error(error.message),
+        source: 'operationItems',
+      });
+    });
+  }, [actionContext, resolvedOperationState.errors]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {

@@ -24,7 +24,8 @@
     "build": "rsbuild build && rslib build",
     "dev": "rsbuild dev",
     "preview": "rsbuild preview",
-    "clean": "rimraf dist lib"
+    "clean": "rimraf dist lib",
+    "test": "npm run build && node --test test/**/*.test.mjs"
   },
   "repository": {
     "type": "git",

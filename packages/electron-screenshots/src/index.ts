@@ -112,13 +112,13 @@ export default class Screenshots extends Events {
 
   constructor(opts?: ScreenshotsOpts) {
     super();
-    this.logger = opts?.logger || debug('electron-screenshots');
+    this.logger = opts?.logger || debug('screenshots:electron');
     this.singleWindow = opts?.singleWindow || false;
     this.operationItems = opts?.operationItems ?? [];
     this.forwardEvents = opts?.forwardEvents ?? true;
     this.listenIpc();
     this.$view.webContents.loadURL(
-      `file://${require.resolve('react-screenshots/dist/electron.html')}`,
+      `file://${require.resolve('@474420502/react-screenshots/dist/electron.html')}`,
     );
     if (opts?.lang) {
       this.setLang(opts.lang);

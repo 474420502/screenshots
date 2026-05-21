@@ -1,10 +1,16 @@
-# react-screenshots
+# @474420502/react-screenshots
 
-> a screenshot cropper tool by react
+> Extensible screenshot cropper tool for React
+
+This package is independently maintained by 474420502 and is based on the MIT-licensed `nashaofu/screenshots` project.
+
+For legal attribution and project lineage, see the root `NOTICE.md` and `LICENSE` files.
 
 ## Install
 
-[![NPM](https://nodei.co/npm/react-screenshots.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/react-screenshots/)
+```bash
+pnpm add @474420502/react-screenshots
+```
 
 ## Usage
 
@@ -12,7 +18,7 @@
 
 ```ts
 import React, { ReactElement, useCallback } from "react";
-import Screenshots, { Bounds } from "react-screenshots";
+import Screenshots, { Bounds } from "@474420502/react-screenshots";
 import url from "./image.jpg";
 
 interface Bounds {
@@ -59,7 +65,7 @@ export default function App(): ReactElement {
 
 2. electron 中使用
 
-- electron 中使用可直接加载渲染进程的页面，页面路径为`require.resolve('react-screenshots/electron/electron.html')`，不推荐自己手动开发主进程，推荐直接使用`electron-screenshots`模块
+- electron 中使用可直接加载渲染进程的页面，页面路径为`require.resolve('@474420502/react-screenshots/dist/electron.html')`，不推荐自己手动开发主进程，推荐直接使用`@474420502/electron-screenshots`模块
 
 ```ts
 interface ScreenshotsData {
@@ -154,7 +160,7 @@ function App() {
 import Screenshots, {
   type ScreenshotsEvent,
   type ScreenshotsOperationItem,
-} from "react-screenshots";
+} from "@474420502/react-screenshots";
 
 const operationItems: ScreenshotsOperationItem[] = [
   {

@@ -1,6 +1,10 @@
-# electron-screenshots
+# @474420502/electron-screenshots
 
-> electron 截图插件
+> Extensible Electron screenshot toolkit
+
+This package is independently maintained by 474420502 and is based on the MIT-licensed `nashaofu/screenshots` project.
+
+For legal attribution and project lineage, see the root `NOTICE.md` and `LICENSE` files.
 
 ## Prerequisites
 
@@ -8,7 +12,9 @@
 
 ## Install
 
-[![NPM](https://nodei.co/npm/electron-screenshots.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/electron-screenshots/)
+```bash
+pnpm add @474420502/electron-screenshots
+```
 
 ## Usage
 
@@ -64,12 +70,12 @@ app.on("window-all-closed", () => {
 ```js
 {
   externals: {
-    'electron-screenshots': 'require("electron-screenshots")'
+    '@474420502/electron-screenshots': 'require("@474420502/electron-screenshots")'
   }
 }
 ```
 
-- `vue-cli-plugin-electron-builder`配置示例[vue-cli-plugin-electron-builder-issue](https://github.com/nashaofu/vue-cli-plugin-electron-builder-issue/blob/0f774a90b09e10b02f86fcb6b50645058fe1a4e8/vue.config.js#L1-L8)
+- `vue-cli-plugin-electron-builder`配置示例
 
 ```js
 // vue.config.js
@@ -78,7 +84,7 @@ module.exports = {
   pluginOptions: {
     electronBuilder: {
       // 不打包，使用 require 加载
-      externals: ["electron-screenshots"],
+      externals: ["@474420502/electron-screenshots"],
     },
   },
 };
@@ -94,7 +100,7 @@ import viteExternals from "vite-plugin-externals";
 export default defineConfig({
   plugins: [
     viteExternals({
-      "electron-screenshots": 'require("electron-screenshots")', // 模块名称: 全局变量
+      "@474420502/electron-screenshots": 'require("@474420502/electron-screenshots")', // 模块名称: 全局变量
     }),
   ],
 });
@@ -146,7 +152,7 @@ export interface Lang {
 
 export interface ScreenshotsOpts {
   lang?: Lang;
-  // 调用日志，默认值为 debug('electron-screenshots')
+  // 调用日志，默认值为 debug('screenshots:electron')
   // debug https://www.npmjs.com/package/debug
   logger?: Logger;
   // 是否复用截图窗口，加快截图窗口显示，默认值为 false
@@ -186,7 +192,7 @@ export interface ElectronScreenshotsOperationItem {
 
 ## Extension API
 
-`electron-screenshots`可以在主进程配置可序列化的扩展按钮。点击按钮后，渲染进程会把按钮`key`、当前选区、屏幕信息和可选 png buffer 回传到主进程，适合接入 OCR、大模型、上传、审计等业务能力。
+`@474420502/electron-screenshots`可以在主进程配置可序列化的扩展按钮。点击按钮后，渲染进程会把按钮`key`、当前选区、屏幕信息和可选 png buffer 回传到主进程，适合接入 OCR、大模型、上传、审计等业务能力。
 
 ```ts
 const screenshots = new Screenshots({
@@ -223,7 +229,7 @@ screenshots.on("selectionChange", (_event, rendererEvent) => {
 });
 ```
 
-如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。
+如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`@474420502/react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。
 
 ## Events
 

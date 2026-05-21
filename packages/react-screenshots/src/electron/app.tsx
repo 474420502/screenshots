@@ -45,10 +45,10 @@ function serializeSnapshot(snapshot: ScreenshotsStateSnapshot) {
       stackLength: snapshot.history.stack.length,
       top: top
         ? {
-          type: top.type,
-          name:
-            top.type === HistoryItemType.Source ? top.name : top.source.name,
-        }
+            type: top.type,
+            name:
+              top.type === HistoryItemType.Source ? top.name : top.source.name,
+          }
         : null,
     },
   };
@@ -87,12 +87,12 @@ function serializePayload(event: ScreenshotsEvent): unknown {
         | undefined;
       return payload
         ? {
-          action: payload.action,
-          history: {
-            index: payload.history.index,
-            stackLength: payload.history.stack.length,
-          },
-        }
+            action: payload.action,
+            history: {
+              index: payload.history.index,
+              stackLength: payload.history.stack.length,
+            },
+          }
         : undefined;
     }
     case 'error': {
@@ -101,9 +101,9 @@ function serializePayload(event: ScreenshotsEvent): unknown {
         | undefined;
       return payload
         ? {
-          source: payload.source,
-          error: serializeError(payload.error),
-        }
+            source: payload.source,
+            error: serializeError(payload.error),
+          }
         : undefined;
     }
     case 'captureReady':

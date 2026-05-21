@@ -55,7 +55,7 @@ app.whenReady().then(() => {
     show: true,
   });
   mainWin.removeMenu();
-  mainWin.loadURL('https://github.com/nashaofu');
+  mainWin.loadURL('https://github.com/474420502/screenshots');
 });
 
 app.on('window-all-closed', () => {

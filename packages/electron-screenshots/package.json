@@ -1,7 +1,7 @@
 {
-  "name": "electron-screenshots",
+  "name": "@474420502/electron-screenshots",
   "version": "0.6.1",
-  "description": "electron 截图插件",
+  "description": "Extensible Electron screenshot toolkit with custom operation APIs",
   "types": "lib/index.d.ts",
   "main": "lib/index.cjs.js",
   "module": "lib/index.js",
@@ -11,14 +11,15 @@
   ],
   "scripts": {
     "prepublishOnly": "npm run build",
-    "start": "cross-env DEBUG=electron-screenshots electron lib/demo.js",
+    "start": "cross-env DEBUG=screenshots:electron electron lib/demo.js",
     "dev": "tsc --sourceMap --watch",
     "build": "npm run clean && tsc",
     "clean": "rimraf lib"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nashaofu/screenshots.git"
+    "url": "git+https://github.com/474420502/screenshots.git",
+    "directory": "packages/electron-screenshots"
   },
   "keywords": [
     "electron",
@@ -26,12 +27,12 @@
     "screenshot",
     "cropper"
   ],
-  "author": "nashaofu",
+  "author": "474420502",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/nashaofu/screenshots/issues"
+    "url": "https://github.com/474420502/screenshots/issues"
   },
-  "homepage": "https://github.com/nashaofu/screenshots/tree/master/packages/electron-screenshots#readme",
+  "homepage": "https://github.com/474420502/screenshots/tree/master/packages/electron-screenshots#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
@@ -39,7 +40,7 @@
     "debug": "^4.4.3",
     "fs-extra": "^11.3.3",
     "node-screenshots": "^0.2.8",
-    "react-screenshots": "workspace:*"
+    "@474420502/react-screenshots": "workspace:*"
   },
   "peerDependencies": {
     "electron": ">=20"

@@ -31,19 +31,19 @@ export const ScreenshotsOperationsCtx = React.createContext<Bounds | null>(
 
 type ResolvedOperationItem =
   | {
-    type: 'builtin';
-    key: string;
-    Component: ComponentType;
-  }
+      type: 'builtin';
+      key: string;
+      Component: ComponentType;
+    }
   | {
-    type: 'divider';
-    key: string;
-  }
+      type: 'divider';
+      key: string;
+    }
   | {
-    type: 'custom';
-    key: string;
-    item: ScreenshotsOperationButtonItem;
-  };
+      type: 'custom';
+      key: string;
+      item: ScreenshotsOperationButtonItem;
+    };
 
 function isDividerItem(
   item: ScreenshotsOperationItem,

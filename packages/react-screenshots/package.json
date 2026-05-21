@@ -1,7 +1,7 @@
 {
-  "name": "react-screenshots",
+  "name": "@474420502/react-screenshots",
   "version": "0.6.1",
-  "description": "a screenshot cropper tool by react",
+  "description": "Extensible React screenshot cropper with custom operation APIs",
   "type": "module",
   "exports": {
     ".": {
@@ -28,19 +28,20 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nashaofu/screenshots.git"
+    "url": "git+https://github.com/474420502/screenshots.git",
+    "directory": "packages/react-screenshots"
   },
   "keywords": [
     "screenshot",
     "cropper",
     "react"
   ],
-  "author": "nashaofu",
+  "author": "474420502",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/nashaofu/screenshots/issues"
+    "url": "https://github.com/474420502/screenshots/issues"
   },
-  "homepage": "https://github.com/nashaofu/screenshots/tree/master/packages/react-screenshots#readme",
+  "homepage": "https://github.com/474420502/screenshots/tree/master/packages/react-screenshots#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

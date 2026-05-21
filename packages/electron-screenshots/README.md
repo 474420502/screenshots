@@ -170,6 +170,8 @@ export interface ElectronScreenshotsOperationItem {
   title: string;
   icon?: string;
   label?: string;
+  checked?: boolean;
+  disabled?: boolean;
   position?:
     | "start"
     | "before-history"
@@ -180,6 +182,10 @@ export interface ElectronScreenshotsOperationItem {
   // 默认 true，点击按钮时一并回传当前选区 png buffer
   includeImage?: boolean;
 }
+
+export type ElectronScreenshotsOperationItemPatch = Partial<
+  Omit<ElectronScreenshotsOperationItem, "key">
+>;
 ```
 
 | 名称                                              | 说明             | 返回值 |
@@ -189,6 +195,7 @@ export interface ElectronScreenshotsOperationItem {
 | `endCapture(): Promise<void>`                     | 手动结束截图     | -      |
 | `setLang(lang: Lang): Promise<void>`              | 修改语言         | -      |
 | `setOperationItems(items: ElectronScreenshotsOperationItem[]): Promise<void>` | 设置扩展工具栏按钮 | - |
+| `updateOperationItem(key: string, patch: ElectronScreenshotsOperationItemPatch): Promise<boolean>` | 更新单个扩展工具栏按钮 | 是否找到对应 key |
 
 ## Extension API
 
@@ -208,6 +215,7 @@ const screenshots = new Screenshots({
       key: "ask-ai",
       title: "Analyze with AI",
       label: "AI",
+      disabled: true,
       position: { after: "ocr" },
       includeImage: true,
     },
@@ -216,7 +224,9 @@ const screenshots = new Screenshots({
 
 screenshots.on("extensionOperation", async (event, buffer, data) => {
   if (data.key === "ocr" && buffer) {
+    await screenshots.updateOperationItem("ocr", { disabled: true, checked: true });
     await runOcr(buffer, data.bounds, data.display);
+    await screenshots.updateOperationItem("ocr", { disabled: false, checked: false });
   }
 
   if (data.key === "ask-ai" && buffer) {
@@ -229,7 +239,7 @@ screenshots.on("selectionChange", (_event, rendererEvent) => {
 });
 ```
 
-如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`@474420502/react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。
+如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`@474420502/react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。当前支持的动态状态主要是 `checked`、`disabled` 以及通过 `setOperationItems` / `updateOperationItem` 更新可序列化字段。
 
 ## Events
 

@@ -26,6 +26,8 @@ export interface ElectronScreenshotsOperationItem {
   title: string;
   icon?: string;
   label?: string;
+  checked?: boolean;
+  disabled?: boolean;
   position?: ScreenshotsOperationPosition;
   includeImage?: boolean;
 }
@@ -45,10 +47,10 @@ function serializeSnapshot(snapshot: ScreenshotsStateSnapshot) {
       stackLength: snapshot.history.stack.length,
       top: top
         ? {
-            type: top.type,
-            name:
-              top.type === HistoryItemType.Source ? top.name : top.source.name,
-          }
+          type: top.type,
+          name:
+            top.type === HistoryItemType.Source ? top.name : top.source.name,
+        }
         : null,
     },
   };
@@ -87,12 +89,12 @@ function serializePayload(event: ScreenshotsEvent): unknown {
         | undefined;
       return payload
         ? {
-            action: payload.action,
-            history: {
-              index: payload.history.index,
-              stackLength: payload.history.stack.length,
-            },
-          }
+          action: payload.action,
+          history: {
+            index: payload.history.index,
+            stackLength: payload.history.stack.length,
+          },
+        }
         : undefined;
     }
     case 'error': {
@@ -101,9 +103,9 @@ function serializePayload(event: ScreenshotsEvent): unknown {
         | undefined;
       return payload
         ? {
-            source: payload.source,
-            error: serializeError(payload.error),
-          }
+          source: payload.source,
+          error: serializeError(payload.error),
+        }
         : undefined;
     }
     case 'captureReady':
@@ -170,8 +172,9 @@ export default function App(): ReactElement {
         title: operationItem.title,
         icon: operationItem.icon,
         label: operationItem.label,
+        checked: operationItem.checked,
         position: operationItem.position,
-        disabled: () => !display,
+        disabled: !display || operationItem.disabled,
         onClick: async (context) => {
           if (!display) {
             return;

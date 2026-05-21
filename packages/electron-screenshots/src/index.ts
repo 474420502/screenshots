@@ -14,6 +14,7 @@ import {
 import fs from 'fs-extra';
 import Event from './event.js';
 import getDisplay, { type Display } from './getDisplay.js';
+import { updateOperationItem } from './operationItems.js';
 import padStart from './padStart.js';
 import type {
   Bounds,
@@ -65,9 +66,15 @@ export interface ElectronScreenshotsOperationItem {
   title: string;
   icon?: string;
   label?: string;
+  checked?: boolean;
+  disabled?: boolean;
   position?: ScreenshotsOperationPosition;
   includeImage?: boolean;
 }
+
+export type ElectronScreenshotsOperationItemPatch = Partial<
+  Omit<ElectronScreenshotsOperationItem, 'key'>
+>;
 
 export type { Bounds };
 
@@ -200,6 +207,25 @@ export default class Screenshots extends Events {
       'SCREENSHOTS:setOperationItems',
       operationItems,
     );
+  }
+
+  /**
+   * 更新单个扩展工具栏按钮
+   */
+  public async updateOperationItem(
+    key: string,
+    patch: ElectronScreenshotsOperationItemPatch,
+  ): Promise<boolean> {
+    this.logger('updateOperationItem %s %o', key, patch);
+
+    const result = updateOperationItem(this.operationItems, key, patch);
+
+    if (!result.updated) {
+      return false;
+    }
+
+    await this.setOperationItems(result.items);
+    return true;
   }
 
   private shouldForwardEvent(name: string): boolean {

@@ -13,6 +13,7 @@
     "prepublishOnly": "npm run build",
     "start": "cross-env DEBUG=screenshots:electron electron lib/demo.js",
     "dev": "tsc --sourceMap --watch",
+    "test": "npm run build && node --test test/**/*.test.mjs",
     "build": "npm run clean && tsc",
     "clean": "rimraf lib"
   },

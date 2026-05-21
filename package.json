@@ -8,7 +8,7 @@
   "scripts": {
     "postinstall": "npm run build",
     "build": "pnpm --filter \"*\" run build",
-    "test": "pnpm --filter @474420502/react-screenshots run test",
+    "test": "pnpm --filter @474420502/react-screenshots run test && pnpm --filter @474420502/electron-screenshots run test",
     "check": "biome check --write",
     "format": "biome format --write",
     "lint": "biome lint --write"

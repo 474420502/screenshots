@@ -20,6 +20,19 @@ export interface ScreenshotsData {
   display: Display;
 }
 
+export interface ScreenshotsExtensionOperationData {
+  key: string;
+  bounds: Bounds | null;
+  display: Display;
+}
+
+export interface ScreenshotsRendererEvent {
+  name: string;
+  payload?: unknown;
+  snapshot?: unknown;
+  display?: Display;
+}
+
 const map = new Map<ScreenshotsListener, Record<string, IpcRendererListener>>();
 
 contextBridge.exposeInMainWorld('screenshots', {
@@ -47,6 +60,23 @@ contextBridge.exposeInMainWorld('screenshots', {
     console.log('contextBridge ok', arrayBuffer, data);
 
     ipcRenderer.send('SCREENSHOTS:ok', Buffer.from(arrayBuffer), data);
+  },
+  extensionOperation: (
+    arrayBuffer: ArrayBuffer | null,
+    data: ScreenshotsExtensionOperationData,
+  ) => {
+    console.log('contextBridge extensionOperation', arrayBuffer, data);
+
+    ipcRenderer.send(
+      'SCREENSHOTS:extensionOperation',
+      arrayBuffer ? Buffer.from(arrayBuffer) : null,
+      data,
+    );
+  },
+  event: (event: ScreenshotsRendererEvent) => {
+    console.log('contextBridge event', event);
+
+    ipcRenderer.send('SCREENSHOTS:event', event);
   },
   on: (channel: string, fn: ScreenshotsListener) => {
     console.log('contextBridge on', fn);

@@ -15,7 +15,12 @@ import fs from 'fs-extra';
 import Event from './event.js';
 import getDisplay, { type Display } from './getDisplay.js';
 import padStart from './padStart.js';
-import type { Bounds, ScreenshotsData } from './preload.js';
+import type {
+  Bounds,
+  ScreenshotsData,
+  ScreenshotsExtensionOperationData,
+  ScreenshotsRendererEvent,
+} from './preload.js';
 
 export type LoggerFn = (...args: unknown[]) => void;
 export type Logger = Debugger | LoggerFn;
@@ -39,9 +44,43 @@ export interface ScreenshotsOpts {
   lang?: Lang;
   logger?: Logger;
   singleWindow?: boolean;
+  operationItems?: ElectronScreenshotsOperationItem[];
+  forwardEvents?: true | string[];
+}
+
+export type ScreenshotsOperationPosition =
+  | 'start'
+  | 'before-history'
+  | 'before-confirm'
+  | 'end'
+  | {
+      before: string;
+    }
+  | {
+      after: string;
+    };
+
+export interface ElectronScreenshotsOperationItem {
+  key: string;
+  title: string;
+  icon?: string;
+  label?: string;
+  position?: ScreenshotsOperationPosition;
+  includeImage?: boolean;
 }
 
 export type { Bounds };
+
+const rendererReservedEventNames = new Set([
+  'ok',
+  'save',
+  'cancel',
+  'afterSave',
+  'windowCreated',
+  'windowClosed',
+  'captureReady',
+  'extensionOperation',
+]);
 
 export default class Screenshots extends Events {
   // 截图窗口对象
@@ -59,6 +98,10 @@ export default class Screenshots extends Events {
 
   private singleWindow: boolean;
 
+  private operationItems: ElectronScreenshotsOperationItem[];
+
+  private forwardEvents: true | string[];
+
   private isReady = new Promise<void>((resolve) => {
     ipcMain.once('SCREENSHOTS:ready', () => {
       this.logger('SCREENSHOTS:ready');
@@ -71,12 +114,17 @@ export default class Screenshots extends Events {
     super();
     this.logger = opts?.logger || debug('electron-screenshots');
     this.singleWindow = opts?.singleWindow || false;
+    this.operationItems = opts?.operationItems ?? [];
+    this.forwardEvents = opts?.forwardEvents ?? true;
     this.listenIpc();
     this.$view.webContents.loadURL(
       `file://${require.resolve('react-screenshots/dist/electron.html')}`,
     );
     if (opts?.lang) {
       this.setLang(opts.lang);
+    }
+    if (this.operationItems.length) {
+      this.setOperationItems(this.operationItems);
     }
   }
 
@@ -87,12 +135,18 @@ export default class Screenshots extends Events {
     this.logger('startCapture');
 
     const display = getDisplay();
+    this.emit('captureStart', new Event(), display);
 
     const [imageUrl] = await Promise.all([this.capture(display), this.isReady]);
 
     await this.createWindow(display);
 
+    this.$view.webContents.send(
+      'SCREENSHOTS:setOperationItems',
+      this.operationItems,
+    );
     this.$view.webContents.send('SCREENSHOTS:capture', display, imageUrl);
+    this.emit('captureReady', new Event(), display);
   }
 
   /**
@@ -129,6 +183,30 @@ export default class Screenshots extends Events {
     await this.isReady;
 
     this.$view.webContents.send('SCREENSHOTS:setLang', lang);
+  }
+
+  /**
+   * 设置扩展工具栏按钮
+   */
+  public async setOperationItems(
+    operationItems: ElectronScreenshotsOperationItem[],
+  ): Promise<void> {
+    this.logger('setOperationItems', operationItems);
+
+    this.operationItems = operationItems;
+    await this.isReady;
+
+    this.$view.webContents.send(
+      'SCREENSHOTS:setOperationItems',
+      operationItems,
+    );
+  }
+
+  private shouldForwardEvent(name: string): boolean {
+    if (this.forwardEvents === true) {
+      return true;
+    }
+    return this.forwardEvents.includes(name);
   }
 
   private async reset() {
@@ -403,6 +481,46 @@ export default class Screenshots extends Events {
         await fs.writeFile(filePath, buffer);
         this.emit('afterSave', new Event(), buffer, data, true); // isSaved = true
         this.endCapture();
+      },
+    );
+
+    /**
+     * 扩展按钮点击事件
+     */
+    ipcMain.on(
+      'SCREENSHOTS:extensionOperation',
+      (
+        _event,
+        buffer: Buffer | null,
+        data: ScreenshotsExtensionOperationData,
+      ) => {
+        this.logger('SCREENSHOTS:extensionOperation data: %o', data);
+
+        this.emit('extensionOperation', new Event(), buffer, data);
+      },
+    );
+
+    /**
+     * 渲染进程截图生命周期事件
+     */
+    ipcMain.on(
+      'SCREENSHOTS:event',
+      (_event, rendererEvent: ScreenshotsRendererEvent) => {
+        if (!this.shouldForwardEvent(rendererEvent.name)) {
+          return;
+        }
+
+        this.logger(
+          'SCREENSHOTS:event %s %o',
+          rendererEvent.name,
+          rendererEvent,
+        );
+
+        const event = new Event();
+        this.emit('rendererEvent', event, rendererEvent);
+        if (!rendererReservedEventNames.has(rendererEvent.name)) {
+          this.emit(rendererEvent.name, event, rendererEvent);
+        }
       },
     );
   }

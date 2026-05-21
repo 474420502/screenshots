@@ -1,4 +1,4 @@
-import type { ReactElement, PointerEvent as ReactPointerEvent } from "react";
+import type { ReactElement, PointerEvent as ReactPointerEvent } from 'react';
 import {
   memo,
   useCallback,
@@ -6,16 +6,18 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-} from "react";
-import useBounds from "../hooks/useBounds";
-import useStore from "../hooks/useStore";
-import ScreenshotsMagnifier from "../ScreenshotsMagnifier";
-import type { Point, Position } from "../types";
-import getBoundsByPoints from "./getBoundsByPoints";
-import "./index.less";
+} from 'react';
+import useBounds from '../hooks/useBounds';
+import useDispatcher from '../hooks/useDispatcher';
+import useStore from '../hooks/useStore';
+import ScreenshotsMagnifier from '../ScreenshotsMagnifier';
+import type { Point, Position } from '../types';
+import getBoundsByPoints from './getBoundsByPoints';
+import './index.less';
 
 export default memo(function ScreenshotsBackground(): ReactElement | null {
   const { url, image, width, height } = useStore();
+  const { emitEvent } = useDispatcher();
   const [bounds, boundsDispatcher] = useBounds();
 
   const elRef = useRef<HTMLDivElement>(null);
@@ -28,26 +30,27 @@ export default memo(function ScreenshotsBackground(): ReactElement | null {
   const updateBounds = useCallback(
     (p1: Point, p2: Point) => {
       if (!elRef.current) {
-        return;
+        return null;
       }
       const { x, y } = elRef.current.getBoundingClientRect();
 
-      boundsDispatcher.set(
-        getBoundsByPoints(
-          {
-            x: p1.x - x,
-            y: p1.y - y,
-          },
-          {
-            x: p2.x - x,
-            y: p2.y - y,
-          },
-          width,
-          height
-        )
+      const nextBounds = getBoundsByPoints(
+        {
+          x: p1.x - x,
+          y: p1.y - y,
+        },
+        {
+          x: p2.x - x,
+          y: p2.y - y,
+        },
+        width,
+        height,
       );
+      boundsDispatcher.set(nextBounds);
+      emitEvent?.('selectionChange', { bounds: nextBounds });
+      return nextBounds;
     },
-    [width, height, boundsDispatcher]
+    [width, height, boundsDispatcher, emitEvent],
   );
 
   const onPointerDown = useCallback(
@@ -61,8 +64,12 @@ export default memo(function ScreenshotsBackground(): ReactElement | null {
         y: e.clientY,
       };
       isMoveRef.current = false;
+      emitEvent?.('selectionStart', {
+        point: pointRef.current,
+        bounds: null,
+      });
     },
-    [bounds]
+    [bounds, emitEvent],
   );
 
   useEffect(() => {
@@ -99,23 +106,25 @@ export default memo(function ScreenshotsBackground(): ReactElement | null {
         return;
       }
 
+      let nextBounds = bounds;
       if (isMoveRef.current) {
-        updateBounds(pointRef.current, {
+        nextBounds = updateBounds(pointRef.current, {
           x: e.clientX,
           y: e.clientY,
         });
       }
+      emitEvent?.('selectionEnd', { bounds: nextBounds });
       pointRef.current = null;
       isMoveRef.current = false;
     };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
 
     return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [updateBounds]);
+  }, [bounds, updateBounds, emitEvent]);
 
   useLayoutEffect(() => {
     if (!image || bounds) {

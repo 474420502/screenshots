@@ -1,20 +1,206 @@
-import type { MouseEvent, ReactElement } from 'react';
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentType, MouseEvent, ReactElement } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import useBounds from '../hooks/useBounds';
 import useStore from '../hooks/useStore';
-import OperationButtons from '../operations';
-import type { Bounds, Position } from '../types';
+import {
+  builtinOperationComponents,
+  defaultOperationLayout,
+} from '../operations';
+import ScreenshotsButton from '../ScreenshotsButton';
+import type {
+  Bounds,
+  Position,
+  ScreenshotsActionContext,
+  ScreenshotsOperationButtonItem,
+  ScreenshotsOperationDividerItem,
+  ScreenshotsOperationItem,
+  ScreenshotsOperationPosition,
+} from '../types';
 import './index.less';
 
 export const ScreenshotsOperationsCtx = React.createContext<Bounds | null>(
   null,
 );
 
+type ResolvedOperationItem =
+  | {
+    type: 'builtin';
+    key: string;
+    Component: ComponentType;
+  }
+  | {
+    type: 'divider';
+    key: string;
+  }
+  | {
+    type: 'custom';
+    key: string;
+    item: ScreenshotsOperationButtonItem;
+  };
+
+function isDividerItem(
+  item: ScreenshotsOperationItem,
+): item is ScreenshotsOperationDividerItem {
+  return item.type === 'divider';
+}
+
+function getPosition(
+  item: ScreenshotsOperationItem,
+): ScreenshotsOperationPosition {
+  return item.position ?? 'before-confirm';
+}
+
+function findOperationIndex(
+  items: ResolvedOperationItem[],
+  key: string,
+): number {
+  return items.findIndex((item) => item.key === key);
+}
+
+function getInsertIndex(
+  items: ResolvedOperationItem[],
+  position: ScreenshotsOperationPosition,
+): number {
+  if (position === 'start') {
+    return 0;
+  }
+  if (position === 'end') {
+    return items.length;
+  }
+  if (position === 'before-history') {
+    const index = findOperationIndex(items, 'Undo');
+    return index === -1 ? items.length : index;
+  }
+  if (position === 'before-confirm') {
+    const index = findOperationIndex(items, 'Save');
+    return index === -1 ? items.length : index;
+  }
+  if ('before' in position) {
+    const index = findOperationIndex(items, position.before);
+    return index === -1 ? items.length : index;
+  }
+  if ('after' in position) {
+    const index = findOperationIndex(items, position.after);
+    return index === -1 ? items.length : index + 1;
+  }
+  return items.length;
+}
+
+function resolveOperationLayout(
+  operationItems: ScreenshotsOperationItem[],
+): ResolvedOperationItem[] {
+  const items = defaultOperationLayout.map<ResolvedOperationItem>(
+    (operation, index) => {
+      if (operation === '|') {
+        return {
+          type: 'divider',
+          key: `builtin-divider-${index}`,
+        };
+      }
+
+      return {
+        type: 'builtin',
+        key: operation,
+        Component: builtinOperationComponents[operation],
+      };
+    },
+  );
+
+  operationItems.forEach((operationItem, index) => {
+    const position = getPosition(operationItem);
+    const insertIndex = getInsertIndex(items, position);
+    if (isDividerItem(operationItem)) {
+      items.splice(insertIndex, 0, {
+        type: 'divider',
+        key: operationItem.key ?? `custom-divider-${index}`,
+      });
+      return;
+    }
+
+    items.splice(insertIndex, 0, {
+      type: 'custom',
+      key: operationItem.key,
+      item: operationItem,
+    });
+  });
+
+  return items;
+}
+
+function resolveStateValue<T>(
+  value: T | ((context: ScreenshotsActionContext) => T) | undefined,
+  context: ScreenshotsActionContext,
+): T | undefined {
+  if (typeof value === 'function') {
+    return (value as (context: ScreenshotsActionContext) => T)(context);
+  }
+  return value;
+}
+
+function ScreenshotsCustomOperation({
+  item,
+}: {
+  item: ScreenshotsOperationButtonItem;
+}): ReactElement {
+  const { actionContext } = useStore();
+
+  const onClick = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      actionContext.emit('extensionOperation', {
+        key: item.key,
+        bounds: actionContext.getSnapshot().bounds,
+      });
+      try {
+        Promise.resolve(item.onClick?.(actionContext, e)).catch((error) => {
+          actionContext.emit('error', {
+            error,
+            source: `operation:${item.key}`,
+          });
+        });
+      } catch (error) {
+        actionContext.emit('error', {
+          error,
+          source: `operation:${item.key}`,
+        });
+      }
+    },
+    [actionContext, item],
+  );
+
+  if (item.render) {
+    return <>{item.render(actionContext)}</>;
+  }
+
+  return (
+    <ScreenshotsButton
+      title={item.title}
+      icon={item.icon}
+      iconNode={item.iconNode}
+      label={item.label}
+      checked={resolveStateValue(item.checked, actionContext)}
+      disabled={resolveStateValue(item.disabled, actionContext)}
+      option={resolveStateValue(item.option, actionContext)}
+      onClick={onClick}
+    />
+  );
+}
+
 export default memo(function ScreenshotsOperations(): ReactElement | null {
-  const { width, height } = useStore();
+  const { width, height, operationItems } = useStore();
   const [bounds] = useBounds();
   const [operationsRect, setOperationsRect] = useState<Bounds | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
+  const resolvedOperationItems = useMemo(
+    () => resolveOperationLayout(operationItems),
+    [operationItems],
+  );
 
   const elRef = useRef<HTMLDivElement>(null);
   const onDoubleClick = useCallback((e: MouseEvent) => {
@@ -95,16 +281,27 @@ export default memo(function ScreenshotsOperations(): ReactElement | null {
         onContextMenu={onContextMenu}
       >
         <div className="screenshots-operations-buttons">
-          {OperationButtons.map((OperationButton, index) => {
-            if (OperationButton === '|') {
+          {resolvedOperationItems.map((operationItem) => {
+            if (operationItem.type === 'divider') {
               return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: index is ok here
-                <div key={index} className="screenshots-operations-divider" />
+                <div
+                  key={operationItem.key}
+                  className="screenshots-operations-divider"
+                />
               );
-            } else {
-              // biome-ignore lint/suspicious/noArrayIndexKey: index is ok here
-              return <OperationButton key={index} />;
             }
+
+            if (operationItem.type === 'custom') {
+              return (
+                <ScreenshotsCustomOperation
+                  key={operationItem.key}
+                  item={operationItem.item}
+                />
+              );
+            }
+
+            const OperationButton = operationItem.Component;
+            return <OperationButton key={operationItem.key} />;
           })}
         </div>
       </div>

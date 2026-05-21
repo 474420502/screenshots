@@ -14,18 +14,26 @@ export type OperationValueDispatcher = [
 
 export default function useOperation(): OperationValueDispatcher {
   const { operation } = useStore();
-  const { setOperation } = useDispatcher();
+  const { emitEvent, setOperation } = useDispatcher();
 
   const set = useCallback(
-    (operation: string) => {
-      setOperation?.(operation);
+    (nextOperation: string) => {
+      setOperation?.(nextOperation);
+      emitEvent?.('operationChange', {
+        operation: nextOperation,
+        previousOperation: operation,
+      });
     },
-    [setOperation],
+    [operation, setOperation, emitEvent],
   );
 
   const reset = useCallback(() => {
     setOperation?.(undefined);
-  }, [setOperation]);
+    emitEvent?.('operationChange', {
+      operation: undefined,
+      previousOperation: operation,
+    });
+  }, [operation, setOperation, emitEvent]);
 
   return [
     operation,

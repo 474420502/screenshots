@@ -153,6 +153,26 @@ export interface ScreenshotsOpts {
   // 如果设置为 true 则会在第一次调用截图窗口时创建，后续调用时直接使用
   // 且由于窗口不会 close，所以不会触发 app 的 `window-all-closed` 事件
   singleWindow?: boolean;
+  // 扩展工具栏按钮，只支持可序列化配置
+  operationItems?: ElectronScreenshotsOperationItem[];
+  // 转发渲染进程截图事件，默认转发全部事件，也可以传事件名数组
+  forwardEvents?: true | string[];
+}
+
+export interface ElectronScreenshotsOperationItem {
+  key: string;
+  title: string;
+  icon?: string;
+  label?: string;
+  position?:
+    | "start"
+    | "before-history"
+    | "before-confirm"
+    | "end"
+    | { before: string }
+    | { after: string };
+  // 默认 true，点击按钮时一并回传当前选区 png buffer
+  includeImage?: boolean;
 }
 ```
 
@@ -162,6 +182,48 @@ export interface ScreenshotsOpts {
 | `startCapture(): Promise<void>`                   | 调用截图方法截图 | -      |
 | `endCapture(): Promise<void>`                     | 手动结束截图     | -      |
 | `setLang(lang: Lang): Promise<void>`              | 修改语言         | -      |
+| `setOperationItems(items: ElectronScreenshotsOperationItem[]): Promise<void>` | 设置扩展工具栏按钮 | - |
+
+## Extension API
+
+`electron-screenshots`可以在主进程配置可序列化的扩展按钮。点击按钮后，渲染进程会把按钮`key`、当前选区、屏幕信息和可选 png buffer 回传到主进程，适合接入 OCR、大模型、上传、审计等业务能力。
+
+```ts
+const screenshots = new Screenshots({
+  operationItems: [
+    {
+      key: "ocr",
+      title: "OCR",
+      label: "OCR",
+      position: "before-confirm",
+      includeImage: true,
+    },
+    {
+      key: "ask-ai",
+      title: "Analyze with AI",
+      label: "AI",
+      position: { after: "ocr" },
+      includeImage: true,
+    },
+  ],
+});
+
+screenshots.on("extensionOperation", async (event, buffer, data) => {
+  if (data.key === "ocr" && buffer) {
+    await runOcr(buffer, data.bounds, data.display);
+  }
+
+  if (data.key === "ask-ai" && buffer) {
+    await askModel(buffer, data.bounds, data.display);
+  }
+});
+
+screenshots.on("selectionChange", (_event, rendererEvent) => {
+  console.log("selection", rendererEvent.payload);
+});
+```
+
+如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。
 
 ## Events
 
@@ -205,6 +267,14 @@ class Event {
 | afterSave     | 截图保存（取消保存）后的事件                                | `(event: Event, buffer: Buffer, data: ScreenshotsData, isSaved: boolean) => void` |
 | windowCreated | 截图窗口被创建后触发                                        | `($win: BrowserWindow) => void`                                                   |
 | windowClosed  | 截图窗口被关闭后触发，对`BrowserWindow` `closed` 事件的转发 | `($win: BrowserWindow) => void`                                                   |
+| captureStart  | 开始捕获屏幕前触发                                          | `(event: Event, display: Display) => void`                                        |
+| captureReady  | 截图窗口收到屏幕图像后触发                                  | `(event: Event, display: Display) => void`                                        |
+| rendererEvent | 渲染进程统一事件转发                                        | `(event: Event, rendererEvent: ScreenshotsRendererEvent) => void`                 |
+| selectionChange | 选区变化事件                                              | `(event: Event, rendererEvent: ScreenshotsRendererEvent) => void`                 |
+| operationChange | 当前工具变化事件                                          | `(event: Event, rendererEvent: ScreenshotsRendererEvent) => void`                 |
+| historyChange | 标注历史变化事件                                            | `(event: Event, rendererEvent: ScreenshotsRendererEvent) => void`                 |
+| extensionOperation | 扩展按钮点击事件                                      | `(event: Event, buffer: Buffer | null, data: ScreenshotsExtensionOperationData) => void` |
+| error         | 渲染进程扩展错误事件                                        | `(event: Event, rendererEvent: ScreenshotsRendererEvent) => void`                 |
 
 ### 说明
 

@@ -1,6 +1,14 @@
 import type { Dispatch, SetStateAction } from 'react';
 import React from 'react';
-import type { Bounds, CanvasContextRef, EmitterRef, History } from './types';
+import type {
+  Bounds,
+  CanvasContextRef,
+  EmitterRef,
+  History,
+  ScreenshotsActionContext,
+  ScreenshotsEventDispatcher,
+  ScreenshotsOperationItem,
+} from './types';
 import type { Lang } from './zh_CN';
 import zhCN from './zh_CN';
 
@@ -16,10 +24,13 @@ export interface ScreenshotsContextStore {
   bounds: Bounds | null;
   cursor?: string;
   operation?: string;
+  operationItems: ScreenshotsOperationItem[];
+  actionContext: ScreenshotsActionContext;
 }
 
 export interface ScreenshotsContextDispatcher {
   call?: <T>(funcName: string, ...args: T[]) => void;
+  emitEvent?: ScreenshotsEventDispatcher;
   setHistory?: Dispatch<SetStateAction<History>>;
   setBounds?: Dispatch<SetStateAction<Bounds | null>>;
   setCursor?: Dispatch<SetStateAction<string | undefined>>;
@@ -47,9 +58,31 @@ export default React.createContext<ScreenshotsContextValue>({
     bounds: null,
     cursor: 'move',
     operation: undefined,
+    operationItems: [],
+    actionContext: {
+      getSnapshot: () => ({
+        url: undefined,
+        image: null,
+        width: 0,
+        height: 0,
+        bounds: null,
+        cursor: 'move',
+        operation: undefined,
+        history: {
+          index: -1,
+          stack: [],
+        },
+      }),
+      compose: async () => null,
+      reset: () => undefined,
+      emit: () => undefined,
+      setBounds: () => undefined,
+      setOperation: () => undefined,
+    },
   },
   dispatcher: {
     call: undefined,
+    emitEvent: undefined,
     setHistory: undefined,
     setBounds: undefined,
     setCursor: undefined,

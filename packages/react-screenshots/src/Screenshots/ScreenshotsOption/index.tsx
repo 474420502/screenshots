@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode, RefObject } from "react";
+import type { ReactElement, ReactNode, RefObject } from 'react';
 import {
   cloneElement,
   memo,
@@ -6,11 +6,11 @@ import {
   useEffect,
   useRef,
   useState,
-} from "react";
-import { createPortal } from "react-dom";
-import { ScreenshotsOperationsCtx } from "../ScreenshotsOperations";
-import type { Point } from "../types";
-import "./index.less";
+} from 'react';
+import { createPortal } from 'react-dom';
+import { ScreenshotsOperationsCtx } from '../ScreenshotsOperations';
+import type { Point } from '../types';
+import './index.less';
 
 export interface ScreenshotsOptionProps {
   open?: boolean;
@@ -21,8 +21,8 @@ export interface ScreenshotsOptionProps {
 export type Position = Point;
 
 export enum Placement {
-  Bottom = "bottom",
-  Top = "top",
+  Bottom = 'bottom',
+  Top = 'top',
 }
 
 export default memo(function ScreenshotsOption({
@@ -40,7 +40,7 @@ export default memo(function ScreenshotsOption({
 
   const getPopoverEl = () => {
     if (!popoverRef.current) {
-      popoverRef.current = document.createElement("div");
+      popoverRef.current = document.createElement('div');
     }
     return popoverRef.current;
   };
@@ -124,7 +124,7 @@ export default memo(function ScreenshotsOption({
         children as ReactElement<{ ref: RefObject<HTMLDivElement | null> }>,
         {
           ref: childrenRef,
-        }
+        },
       )}
       {open &&
         content &&
@@ -133,7 +133,7 @@ export default memo(function ScreenshotsOption({
             ref={contentRef}
             className="screenshots-option"
             style={{
-              visibility: position ? "visible" : "hidden",
+              visibility: position ? 'visible' : 'hidden',
               transform: `translate(${position?.x ?? 0}px, ${
                 position?.y ?? 0
               }px)`,
@@ -146,7 +146,7 @@ export default memo(function ScreenshotsOption({
               style={{ marginLeft: offsetX }}
             />
           </div>,
-          getPopoverEl()
+          getPopoverEl(),
         )}
     </>
   );

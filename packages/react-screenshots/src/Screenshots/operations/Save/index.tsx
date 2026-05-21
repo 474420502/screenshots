@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import composeImage from '../../composeImage';
 import useCall from '../../hooks/useCall';
 import useCanvasContextRef from '../../hooks/useCanvasContextRef';
+import useDispatcher from '../../hooks/useDispatcher';
 import useHistory from '../../hooks/useHistory';
 import useReset from '../../hooks/useReset';
 import useStore from '../../hooks/useStore';
@@ -12,6 +13,7 @@ export default function Save(): ReactElement {
   const { image, width, height, history, bounds, lang } = useStore();
   const canvasContextRef = useCanvasContextRef();
   const [, historyDispatcher] = useHistory();
+  const { emitEvent } = useDispatcher();
   const call = useCall();
   const reset = useReset();
 
@@ -21,16 +23,22 @@ export default function Save(): ReactElement {
       if (!canvasContextRef.current || !image || !bounds) {
         return;
       }
+      emitEvent?.('beforeSave', { bounds });
       composeImage({
         image,
         width,
         height,
         history,
         bounds,
-      }).then((blob) => {
-        call('onSave', blob, bounds);
-        reset();
-      });
+      })
+        .then((blob) => {
+          emitEvent?.('save', { blob, bounds });
+          call('onSave', blob, bounds);
+          reset('save');
+        })
+        .catch((error) => {
+          emitEvent?.('error', { error, source: 'save' });
+        });
     });
   }, [
     canvasContextRef,
@@ -40,6 +48,7 @@ export default function Save(): ReactElement {
     height,
     history,
     bounds,
+    emitEvent,
     call,
     reset,
   ]);

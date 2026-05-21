@@ -5,7 +5,9 @@ import './index.less';
 
 export interface ScreenshotsButtonProps {
   title: string;
-  icon: string;
+  icon?: string;
+  iconNode?: ReactNode;
+  label?: string;
   checked?: boolean;
   disabled?: boolean;
   option?: ReactNode;
@@ -15,6 +17,8 @@ export interface ScreenshotsButtonProps {
 export default memo(function ScreenshotsButton({
   title,
   icon,
+  iconNode,
+  label,
   checked,
   disabled,
   option,
@@ -46,7 +50,11 @@ export default memo(function ScreenshotsButton({
         title={title}
         onClick={onButtonClick}
       >
-        <span className={icon} />
+        {iconNode ??
+          (icon ? <span className={icon} /> : null) ??
+          (label ? (
+            <span className="screenshots-button-label">{label}</span>
+          ) : null)}
       </div>
     </ScreenshotsOption>
   );

@@ -1,11 +1,26 @@
 import { Display } from './electron/app';
 import { Bounds } from './Screenshots/types';
 
-type ScreenshotsListener = (...args: never[]) => void;
+type ScreenshotsListener<T extends unknown[] = unknown[]> = (
+  ...args: T
+) => void;
 
 interface ScreenshotsData {
   bounds: Bounds;
   display: Display;
+}
+
+interface ScreenshotsExtensionOperationData {
+  key: string;
+  bounds: Bounds | null;
+  display: Display;
+}
+
+interface ScreenshotsRendererEvent {
+  name: string;
+  payload?: unknown;
+  snapshot?: unknown;
+  display?: Display;
 }
 
 interface GlobalScreenshots {
@@ -14,8 +29,19 @@ interface GlobalScreenshots {
   save: (arrayBuffer: ArrayBuffer, data: ScreenshotsData) => void;
   cancel: () => void;
   ok: (arrayBuffer: ArrayBuffer, data: ScreenshotsData) => void;
-  on: (channel: string, fn: ScreenshotsListener) => void;
-  off: (channel: string, fn: ScreenshotsListener) => void;
+  extensionOperation: (
+    arrayBuffer: ArrayBuffer | null,
+    data: ScreenshotsExtensionOperationData,
+  ) => void;
+  event: (event: ScreenshotsRendererEvent) => void;
+  on: <T extends unknown[]>(
+    channel: string,
+    fn: ScreenshotsListener<T>,
+  ) => void;
+  off: <T extends unknown[]>(
+    channel: string,
+    fn: ScreenshotsListener<T>,
+  ) => void;
 }
 
 declare global {

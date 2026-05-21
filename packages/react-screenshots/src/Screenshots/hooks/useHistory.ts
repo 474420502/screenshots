@@ -23,7 +23,7 @@ export type HistoryValueDispatcher = [HistoryValue, HistoryDispatcher];
 
 export default function useHistory(): HistoryValueDispatcher {
   const { history } = useStore();
-  const { setHistory } = useDispatcher();
+  const { emitEvent, setHistory } = useDispatcher();
 
   const push = useCallback(
     <S, E>(action: HistoryItem<S, E>) => {
@@ -44,12 +44,15 @@ export default function useHistory(): HistoryValueDispatcher {
       stack.splice(index + 1);
       stack.push(action);
 
-      setHistory?.({
+      const nextHistory = {
         index: stack.length - 1,
         stack,
-      });
+      };
+
+      setHistory?.(nextHistory);
+      emitEvent?.('historyChange', { action: 'push', history: nextHistory });
     },
-    [history, setHistory],
+    [history, setHistory, emitEvent],
   );
 
   const pop = useCallback(() => {
@@ -57,11 +60,14 @@ export default function useHistory(): HistoryValueDispatcher {
 
     stack.pop();
 
-    setHistory?.({
+    const nextHistory = {
       index: stack.length - 1,
       stack,
-    });
-  }, [history, setHistory]);
+    };
+
+    setHistory?.(nextHistory);
+    emitEvent?.('historyChange', { action: 'pop', history: nextHistory });
+  }, [history, setHistory, emitEvent]);
 
   const undo = useCallback(() => {
     const { index, stack } = history;
@@ -76,11 +82,14 @@ export default function useHistory(): HistoryValueDispatcher {
       }
     }
 
-    setHistory?.({
+    const nextHistory = {
       index: index <= 0 ? -1 : index - 1,
       stack,
-    });
-  }, [history, setHistory]);
+    };
+
+    setHistory?.(nextHistory);
+    emitEvent?.('historyChange', { action: 'undo', history: nextHistory });
+  }, [history, setHistory, emitEvent]);
 
   const redo = useCallback(() => {
     const { index, stack } = history;
@@ -95,17 +104,21 @@ export default function useHistory(): HistoryValueDispatcher {
       }
     }
 
-    setHistory?.({
+    const nextHistory = {
       index: index >= stack.length - 1 ? stack.length - 1 : index + 1,
       stack,
-    });
-  }, [history, setHistory]);
+    };
+
+    setHistory?.(nextHistory);
+    emitEvent?.('historyChange', { action: 'redo', history: nextHistory });
+  }, [history, setHistory, emitEvent]);
 
   const set = useCallback(
     (history: History) => {
       setHistory?.({ ...history });
+      emitEvent?.('historyChange', { action: 'set', history });
     },
-    [setHistory],
+    [setHistory, emitEvent],
   );
 
   const select = useCallback(
@@ -119,9 +132,11 @@ export default function useHistory(): HistoryValueDispatcher {
           }
         }
       });
-      setHistory?.({ ...history });
+      const nextHistory = { ...history };
+      setHistory?.(nextHistory);
+      emitEvent?.('historyChange', { action: 'select', history: nextHistory });
     },
-    [history, setHistory],
+    [history, setHistory, emitEvent],
   );
 
   const clearSelect = useCallback(() => {
@@ -131,15 +146,23 @@ export default function useHistory(): HistoryValueDispatcher {
       }
     });
 
-    setHistory?.({ ...history });
-  }, [history, setHistory]);
+    const nextHistory = { ...history };
+    setHistory?.(nextHistory);
+    emitEvent?.('historyChange', {
+      action: 'clearSelect',
+      history: nextHistory,
+    });
+  }, [history, setHistory, emitEvent]);
 
   const reset = useCallback(() => {
-    setHistory?.({
+    const nextHistory = {
       index: -1,
       stack: [],
-    });
-  }, [setHistory]);
+    };
+
+    setHistory?.(nextHistory);
+    emitEvent?.('historyChange', { action: 'reset', history: nextHistory });
+  }, [setHistory, emitEvent]);
 
   return [
     {

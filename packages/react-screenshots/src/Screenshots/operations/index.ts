@@ -10,18 +10,43 @@ import Save from './Save';
 import Text from './Text';
 import Undo from './Undo';
 
-export default [
+export const builtinOperationComponents = {
   Rectangle,
   Ellipse,
   Arrow,
   Brush,
   Text,
   Mosaic,
-  '|',
   Undo,
   Redo,
-  '|',
   Save,
   Cancel,
   Ok,
+};
+
+export type BuiltinOperationKey = keyof typeof builtinOperationComponents;
+
+export type OperationLayoutItem = BuiltinOperationKey | '|';
+
+export const defaultOperationLayout: OperationLayoutItem[] = [
+  'Rectangle',
+  'Ellipse',
+  'Arrow',
+  'Brush',
+  'Text',
+  'Mosaic',
+  '|',
+  'Undo',
+  'Redo',
+  '|',
+  'Save',
+  'Cancel',
+  'Ok',
 ];
+
+export default defaultOperationLayout.map((item) => {
+  if (item === '|') {
+    return item;
+  }
+  return builtinOperationComponents[item];
+});

@@ -73,6 +73,12 @@ interface GlobalScreenshots {
   save: (arrayBuffer: ArrayBuffer, data: ScreenshotsData) => void
   cancel: () => void
   ok: (arrayBuffer: ArrayBuffer, data: ScreenshotsData) => void
+  extensionOperation: (arrayBuffer: ArrayBuffer | null, data: {
+    key: string
+    bounds: Bounds | null
+    display: Display
+  }) => void
+  event: (event: unknown) => void
   on: (channel: string, fn: ScreenshotsListener) => void
   off: (channel: string, fn: ScreenshotsListener) => void
 }
@@ -116,6 +122,10 @@ interface Lang {
 | onSave   | 保存按钮回调         | `(blob: Blob, bounds: Bounds) => void` | 否       |
 | onCancel | 取消按钮回调         | `() => void`                           | 否       |
 | onOk     | 取消按钮回调         | `(blob: Blob, bounds: Bounds) => void` | 否       |
+| onEvent  | 截图生命周期统一回调 | `(event: ScreenshotsEvent) => void`    | 否       |
+| onError  | 截图扩展错误回调     | `(error: unknown, event?: ScreenshotsEvent<'error'>) => void` | 否 |
+| operationItems | 扩展工具栏按钮 | `ScreenshotsOperationItem[]` | 否 |
+| extraOperationItems | 追加扩展工具栏按钮 | `ScreenshotsOperationItem[]` | 否 |
 
 ### example
 
@@ -135,6 +145,77 @@ function App() {
   );
 }
 ```
+
+## Extension API
+
+`operationItems`可以把第三方功能植入截图工具栏，例如 OCR、上传、大模型分析等。按钮默认插入到保存、取消、确定按钮之前，也可以通过`position`指定位置。
+
+```ts
+import Screenshots, {
+  type ScreenshotsEvent,
+  type ScreenshotsOperationItem,
+} from "react-screenshots";
+
+const operationItems: ScreenshotsOperationItem[] = [
+  {
+    key: "ocr",
+    title: "OCR",
+    label: "OCR",
+    position: "before-confirm",
+    async onClick(context) {
+      const snapshot = context.getSnapshot();
+      const blob = await context.compose();
+
+      if (!blob || !snapshot.bounds) {
+        return;
+      }
+
+      context.emit("custom", {
+        key: "ocr",
+        bounds: snapshot.bounds,
+      });
+
+      // 这里接入自己的 OCR、大模型、上传等业务接口
+      await runOcr(blob, snapshot.bounds);
+    },
+  },
+];
+
+function App() {
+  const onEvent = (event: ScreenshotsEvent) => {
+    if (event.name === "selectionChange") {
+      console.log("selection", event.payload?.bounds);
+    }
+  };
+
+  return (
+    <Screenshots
+      url="./example.png"
+      width={window.innerWidth}
+      height={window.innerHeight}
+      operationItems={operationItems}
+      onEvent={onEvent}
+    />
+  );
+}
+```
+
+### ScreenshotsActionContext
+
+扩展按钮的`onClick(context)`会收到以下稳定入口：
+
+| 名称 | 说明 |
+| ---- | ---- |
+| `getSnapshot()` | 获取当前截图状态，包括选区、历史、当前工具、图片尺寸等 |
+| `compose(bounds?)` | 合成当前选区和标注，返回`Blob | null` |
+| `reset(source?)` | 重置截图状态 |
+| `emit(name, payload?)` | 触发统一`onEvent`事件 |
+| `setBounds(bounds)` | 设置或清空选区 |
+| `setOperation(operation)` | 切换当前操作工具 |
+
+### ScreenshotsEvent
+
+`onEvent`会接收选择区、绘制、工具、历史、确认、保存、取消和错误等关键事件。常用事件包括：`captureReady`、`selectionStart`、`selectionChange`、`selectionEnd`、`operationChange`、`historyChange`、`beforeSave`、`save`、`beforeOk`、`ok`、`cancel`、`extensionOperation`、`custom`、`error`。
 
 ## Screenshot
 

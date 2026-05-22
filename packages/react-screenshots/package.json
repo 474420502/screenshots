@@ -1,6 +1,6 @@
 {
   "name": "@474420502/react-screenshots",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Extensible React screenshot cropper with custom operation APIs",
   "type": "module",
   "exports": {

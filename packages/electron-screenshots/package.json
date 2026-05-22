@@ -1,6 +1,6 @@
 {
   "name": "@474420502/electron-screenshots",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Extensible Electron screenshot toolkit with custom operation APIs",
   "types": "lib/index.d.ts",
   "main": "lib/index.cjs.js",

@@ -54,6 +54,7 @@ pnpm --filter @474420502/react-screenshots build
 - `operationItems` / `extraOperationItems` 支持自定义按钮和分隔符
 - 自定义按钮支持 `checked`、`disabled`、`option`、`render`、`position` 和 `onClick(context)`
 - `onEvent` / `onError` 可统一监听扩展生命周期和异常
+- 内置 Electron renderer 现在也支持主进程通过可序列化 `option` 结果面板桥接 OCR / AI 结果
 - 非法按钮配置会在运行时发出 `error` 事件并忽略无效项
 
 ## Usage
@@ -110,6 +111,7 @@ export default function App(): ReactElement {
 2. electron 中使用
 
 - electron 中使用可直接加载渲染进程的页面，页面路径为`require.resolve('@474420502/react-screenshots/dist/electron.html')`，不推荐自己手动开发主进程，推荐直接使用`@474420502/electron-screenshots`模块
+- 如果你通过 `@474420502/electron-screenshots` 下发自定义按钮，当前内置 renderer 已支持把主进程传来的可序列化 `option` 数据渲染成按钮结果面板
 
 ```ts
 interface ScreenshotsData {

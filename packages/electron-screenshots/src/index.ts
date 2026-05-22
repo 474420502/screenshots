@@ -1,4 +1,5 @@
 import Events from 'node:events';
+import { writeFile } from 'node:fs/promises';
 import debug, { type Debugger } from 'debug';
 import {
   BrowserView,
@@ -11,10 +12,19 @@ import {
   nativeImage,
   screen,
 } from 'electron';
-import fs from 'fs-extra';
 import Event from './event.js';
 import getDisplay, { type Display } from './getDisplay.js';
-import { updateOperationItem } from './operationItems.js';
+import {
+  type CreateImageResourceOptions,
+  ImageResourceStore,
+  type ImageResourceInput,
+  type ScreenshotsImageResource,
+} from './imageResources.js';
+import {
+  getOperationItemHandlers,
+  mapOperationItemsForRenderer,
+  updateOperationItem,
+} from './operationItems.js';
 import padStart from './padStart.js';
 import type {
   Bounds,
@@ -46,6 +56,7 @@ export interface ScreenshotsOpts {
   logger?: Logger;
   singleWindow?: boolean;
   operationItems?: ElectronScreenshotsOperationItem[];
+  operationHandlers?: Record<string, ElectronScreenshotsOperationHandler>;
   forwardEvents?: true | string[];
 }
 
@@ -66,17 +77,96 @@ export interface ElectronScreenshotsOperationItem {
   title: string;
   icon?: string;
   label?: string;
+  handler?: ElectronScreenshotsOperationHandler;
   checked?: boolean;
   disabled?: boolean;
+  option?: ElectronScreenshotsOperationOption;
   position?: ScreenshotsOperationPosition;
   includeImage?: boolean;
+  imageResource?: boolean | CreateImageResourceOptions;
 }
+
+export interface ElectronScreenshotsOperationOptionText {
+  type?: 'text';
+  title?: string;
+  description?: string;
+  text: string;
+}
+
+export interface ElectronScreenshotsOperationOptionList {
+  type: 'list';
+  title?: string;
+  description?: string;
+  items: string[];
+  ordered?: boolean;
+}
+
+export interface ElectronScreenshotsOperationOptionKeyValueItem {
+  label: string;
+  value: string;
+}
+
+export interface ElectronScreenshotsOperationOptionKeyValue {
+  type: 'key-value';
+  title?: string;
+  description?: string;
+  items: ElectronScreenshotsOperationOptionKeyValueItem[];
+}
+
+export type ElectronScreenshotsOperationOption =
+  | string
+  | ElectronScreenshotsOperationOptionText
+  | ElectronScreenshotsOperationOptionList
+  | ElectronScreenshotsOperationOptionKeyValue;
+
+export type ElectronScreenshotsOperationContextPatch = Omit<
+  ElectronScreenshotsOperationItemPatch,
+  'option'
+>;
+
+export interface ElectronScreenshotsOperationContext {
+  key: string;
+  buffer: Buffer | null;
+  bounds: Bounds | null;
+  display: Display;
+  imageResource?: ScreenshotsImageResource;
+  update: (patch: ElectronScreenshotsOperationItemPatch) => Promise<boolean>;
+  showOption: (
+    option: ElectronScreenshotsOperationOption,
+    patch?: ElectronScreenshotsOperationContextPatch,
+  ) => Promise<boolean>;
+  clearOption: (
+    patch?: ElectronScreenshotsOperationContextPatch,
+  ) => Promise<boolean>;
+  createImageResource: (
+    input: ImageResourceInput,
+    options?: CreateImageResourceOptions,
+  ) => Promise<ScreenshotsImageResource>;
+  getImageResource: (token: string) => ScreenshotsImageResource | undefined;
+  getImageResourcePath: (token: string) => string | undefined;
+  revokeImageResource: (token: string) => Promise<boolean>;
+  endCapture: () => Promise<void>;
+}
+
+export type ElectronScreenshotsOperationHandler = (
+  context: ElectronScreenshotsOperationContext,
+) => unknown | Promise<unknown>;
 
 export type ElectronScreenshotsOperationItemPatch = Partial<
   Omit<ElectronScreenshotsOperationItem, 'key'>
 >;
 
-export type { Bounds };
+export type {
+  Bounds,
+  ScreenshotsData,
+  ScreenshotsExtensionOperationData,
+  ScreenshotsRendererEvent,
+} from './preload.js';
+export type {
+  CreateImageResourceOptions,
+  ImageResourceInput,
+  ScreenshotsImageResource,
+};
 
 const rendererReservedEventNames = new Set([
   'ok',
@@ -107,7 +197,19 @@ export default class Screenshots extends Events {
 
   private operationItems: ElectronScreenshotsOperationItem[];
 
+  private operationHandlers = new Map<
+    string,
+    ElectronScreenshotsOperationHandler
+  >();
+
+  private operationItemHandlers = new Map<
+    string,
+    ElectronScreenshotsOperationHandler
+  >();
+
   private forwardEvents: true | string[];
+
+  private imageResourceStore = new ImageResourceStore();
 
   private isReady = new Promise<void>((resolve) => {
     ipcMain.once('SCREENSHOTS:ready', () => {
@@ -123,6 +225,9 @@ export default class Screenshots extends Events {
     this.singleWindow = opts?.singleWindow || false;
     this.operationItems = opts?.operationItems ?? [];
     this.forwardEvents = opts?.forwardEvents ?? true;
+    if (opts?.operationHandlers) {
+      this.setOperationHandlers(opts.operationHandlers);
+    }
     this.listenIpc();
     this.$view.webContents.loadURL(
       `file://${require.resolve('@474420502/react-screenshots/dist/electron.html')}`,
@@ -150,7 +255,7 @@ export default class Screenshots extends Events {
 
     this.$view.webContents.send(
       'SCREENSHOTS:setOperationItems',
-      this.operationItems,
+      this.getRendererOperationItems(this.operationItems),
     );
     this.$view.webContents.send('SCREENSHOTS:capture', display, imageUrl);
     this.emit('captureReady', new Event(), display);
@@ -201,12 +306,50 @@ export default class Screenshots extends Events {
     this.logger('setOperationItems', operationItems);
 
     this.operationItems = operationItems;
+    this.syncOperationItemHandlers(operationItems);
     await this.isReady;
 
     this.$view.webContents.send(
       'SCREENSHOTS:setOperationItems',
-      operationItems,
+      this.getRendererOperationItems(operationItems),
     );
+  }
+
+  /**
+   * 注册单个扩展按钮处理函数
+   */
+  public setOperationHandler(
+    key: string,
+    handler: ElectronScreenshotsOperationHandler | undefined,
+  ): void {
+    this.logger('setOperationHandler %s', key);
+
+    if (!handler) {
+      this.operationHandlers.delete(key);
+      return;
+    }
+
+    this.operationHandlers.set(key, handler);
+  }
+
+  /**
+   * 批量注册扩展按钮处理函数
+   */
+  public setOperationHandlers(
+    handlers: Partial<Record<string, ElectronScreenshotsOperationHandler>>,
+  ): void {
+    Object.entries(handlers).forEach(([key, handler]) => {
+      this.setOperationHandler(key, handler);
+    });
+  }
+
+  /**
+   * 移除单个扩展按钮处理函数
+   */
+  public removeOperationHandler(key: string): boolean {
+    this.logger('removeOperationHandler %s', key);
+
+    return this.operationHandlers.delete(key);
   }
 
   /**
@@ -226,6 +369,159 @@ export default class Screenshots extends Events {
 
     await this.setOperationItems(result.items);
     return true;
+  }
+
+  /**
+   * 创建临时图片资源，用于把截图结果安全传递给其他窗口或业务流程
+   */
+  public async createImageResource(
+    input: ImageResourceInput,
+    options?: CreateImageResourceOptions,
+  ): Promise<ScreenshotsImageResource> {
+    this.logger('createImageResource %o', options);
+
+    return this.imageResourceStore.create(input, options);
+  }
+
+  /**
+   * 获取临时图片资源元数据
+   */
+  public getImageResource(
+    token: string,
+  ): ScreenshotsImageResource | undefined {
+    return this.imageResourceStore.get(token);
+  }
+
+  /**
+   * 获取临时图片资源文件路径
+   */
+  public getImageResourcePath(token: string): string | undefined {
+    return this.imageResourceStore.getPath(token);
+  }
+
+  /**
+   * 释放单个临时图片资源
+   */
+  public async revokeImageResource(token: string): Promise<boolean> {
+    this.logger('revokeImageResource %s', token);
+
+    return this.imageResourceStore.revoke(token);
+  }
+
+  /**
+   * 释放当前实例创建的全部临时图片资源
+   */
+  public async clearImageResources(): Promise<void> {
+    this.logger('clearImageResources');
+
+    await this.imageResourceStore.clear();
+  }
+
+  private async replaceOperationItem(
+    key: string,
+    updater: (
+      operationItem: ElectronScreenshotsOperationItem,
+    ) => ElectronScreenshotsOperationItem,
+  ): Promise<boolean> {
+    const index = this.operationItems.findIndex((item) => item.key === key);
+
+    if (index === -1) {
+      return false;
+    }
+
+    const operationItem = this.operationItems[index];
+
+    if (!operationItem) {
+      return false;
+    }
+
+    const nextItems = [...this.operationItems];
+    nextItems[index] = updater(operationItem);
+    await this.setOperationItems(nextItems);
+    return true;
+  }
+
+  private syncOperationItemHandlers(
+    operationItems: ElectronScreenshotsOperationItem[],
+  ): void {
+    this.operationItemHandlers = getOperationItemHandlers(operationItems);
+  }
+
+  private getRendererOperationItems(
+    operationItems: ElectronScreenshotsOperationItem[],
+  ): Array<Omit<ElectronScreenshotsOperationItem, 'handler'>> {
+    return mapOperationItemsForRenderer(operationItems);
+  }
+
+  private async clearOperationItemOption(
+    key: string,
+    patch?: ElectronScreenshotsOperationContextPatch,
+  ): Promise<boolean> {
+    return this.replaceOperationItem(key, (operationItem) => {
+      const { option: _removedOption, ...nextOperationItem } = operationItem;
+
+      return {
+        ...nextOperationItem,
+        ...patch,
+        checked: patch?.checked ?? false,
+        key: operationItem.key,
+      };
+    });
+  }
+
+  private createOperationHandlerContext(
+    buffer: Buffer | null,
+    data: ScreenshotsExtensionOperationData,
+  ): ElectronScreenshotsOperationContext {
+    const key = data.key;
+    const baseContext = {
+      key,
+      buffer,
+      bounds: data.bounds,
+      display: data.display,
+      update: (patch: ElectronScreenshotsOperationItemPatch) =>
+        this.updateOperationItem(key, patch),
+      showOption: (
+        option: ElectronScreenshotsOperationOption,
+        patch?: ElectronScreenshotsOperationContextPatch,
+      ) =>
+        this.updateOperationItem(key, {
+          ...patch,
+          checked: patch?.checked ?? true,
+          option,
+        }),
+      clearOption: (patch?: ElectronScreenshotsOperationContextPatch) =>
+        this.clearOperationItemOption(key, patch),
+      createImageResource: (
+        input: ImageResourceInput,
+        options?: CreateImageResourceOptions,
+      ) => this.createImageResource(input, options),
+      getImageResource: (token: string) => this.getImageResource(token),
+      getImageResourcePath: (token: string) => this.getImageResourcePath(token),
+      revokeImageResource: (token: string) => this.revokeImageResource(token),
+      endCapture: () => this.endCapture(),
+    };
+
+    if (data.imageResource) {
+      return {
+        ...baseContext,
+        imageResource: data.imageResource,
+      };
+    }
+
+    return baseContext;
+  }
+
+  private getOperationItem(
+    key: string,
+  ): ElectronScreenshotsOperationItem | undefined {
+    return this.operationItems.find((item) => item.key === key);
+  }
+
+  private getOperationHandler(
+    key: string,
+  ): ElectronScreenshotsOperationHandler | undefined {
+    return this.operationItemHandlers.get(key) ?? this.operationHandlers.get(key);
   }
 
   private shouldForwardEvent(name: string): boolean {
@@ -504,7 +800,7 @@ export default class Screenshots extends Events {
           return;
         }
 
-        await fs.writeFile(filePath, buffer);
+        await writeFile(filePath, buffer);
         this.emit('afterSave', new Event(), buffer, data, true); // isSaved = true
         this.endCapture();
       },
@@ -515,14 +811,55 @@ export default class Screenshots extends Events {
      */
     ipcMain.on(
       'SCREENSHOTS:extensionOperation',
-      (
+      async (
         _event,
         buffer: Buffer | null,
         data: ScreenshotsExtensionOperationData,
       ) => {
         this.logger('SCREENSHOTS:extensionOperation data: %o', data);
 
-        this.emit('extensionOperation', new Event(), buffer, data);
+        const operationItem = this.getOperationItem(data.key);
+        const shouldCreateImageResource = operationItem?.imageResource;
+        let imageResource = data.imageResource;
+
+        if (buffer && shouldCreateImageResource) {
+          try {
+            imageResource = await this.createImageResource(
+              buffer,
+              shouldCreateImageResource === true
+                ? undefined
+                : shouldCreateImageResource,
+            );
+          } catch (error) {
+            this.logger(
+              'SCREENSHOTS:extensionOperation createImageResource error %o',
+              error,
+            );
+          }
+        }
+
+        const payload = imageResource ? { ...data, imageResource } : data;
+        const emittedBuffer = operationItem?.includeImage === false ? null : buffer;
+
+        this.emit('extensionOperation', new Event(), emittedBuffer, payload);
+
+        const operationHandler = this.getOperationHandler(payload.key);
+
+        if (!operationHandler) {
+          return;
+        }
+
+        try {
+          await operationHandler(
+            this.createOperationHandlerContext(emittedBuffer, payload),
+          );
+        } catch (error) {
+          this.logger(
+            'SCREENSHOTS:extensionOperation handler error %s %o',
+            payload.key,
+            error,
+          );
+        }
       },
     );
 

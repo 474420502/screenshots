@@ -1,6 +1,55 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { updateOperationItem } from '../lib/operationItems.js';
+import {
+    getOperationItemHandlers,
+    mapOperationItemsForRenderer,
+    updateOperationItem,
+} from '../lib/operationItems.js';
+
+test('mapOperationItemsForRenderer strips runtime handlers before renderer transport', () => {
+    const handler = () => { };
+    const items = [
+        {
+            key: 'ocr',
+            title: 'OCR',
+            label: 'OCR',
+            handler,
+        },
+    ];
+
+    assert.deepEqual(mapOperationItemsForRenderer(items), [
+        {
+            key: 'ocr',
+            title: 'OCR',
+            label: 'OCR',
+        },
+    ]);
+});
+
+test('getOperationItemHandlers collects inline handlers by key', () => {
+    const ocrHandler = () => 'ocr';
+    const askAiHandler = () => 'ask-ai';
+    const handlers = getOperationItemHandlers([
+        {
+            key: 'ocr',
+            title: 'OCR',
+            handler: ocrHandler,
+        },
+        {
+            key: 'ask-ai',
+            title: 'Ask AI',
+            handler: askAiHandler,
+        },
+        {
+            key: 'plain',
+            title: 'Plain',
+        },
+    ]);
+
+    assert.equal(handlers.get('ocr'), ocrHandler);
+    assert.equal(handlers.get('ask-ai'), askAiHandler);
+    assert.equal(handlers.has('plain'), false);
+});
 
 test('updateOperationItem patches the matching item without changing its key', () => {
     const items = [

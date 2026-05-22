@@ -1,6 +1,10 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Screenshots from '../Screenshots';
+import {
+  renderElectronOperationOption,
+  type ElectronScreenshotsOperationOption,
+} from './operationOption';
 import type {
   Bounds,
   ScreenshotsEvent,
@@ -28,8 +32,16 @@ export interface ElectronScreenshotsOperationItem {
   label?: string;
   checked?: boolean;
   disabled?: boolean;
+  option?: ElectronScreenshotsOperationOption;
   position?: ScreenshotsOperationPosition;
   includeImage?: boolean;
+  imageResource?:
+  | boolean
+  | {
+    directory?: string;
+    fileNamePrefix?: string;
+    mimeType?: string;
+  };
 }
 
 function serializeSnapshot(snapshot: ScreenshotsStateSnapshot) {
@@ -173,6 +185,7 @@ export default function App(): ReactElement {
         icon: operationItem.icon,
         label: operationItem.label,
         checked: operationItem.checked,
+        option: renderElectronOperationOption(operationItem.option),
         position: operationItem.position,
         disabled: !display || operationItem.disabled,
         onClick: async (context) => {
@@ -182,7 +195,13 @@ export default function App(): ReactElement {
 
           const { bounds } = context.getSnapshot();
           let arrayBuffer: ArrayBuffer | null = null;
-          if (operationItem.includeImage !== false && bounds) {
+          const shouldComposeImage = Boolean(
+            bounds &&
+            (operationItem.includeImage !== false ||
+              operationItem.imageResource),
+          );
+
+          if (shouldComposeImage && bounds) {
             const blob = await context.compose(bounds);
             if (blob) {
               arrayBuffer = await blob.arrayBuffer();

@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from 'electron';
 import type { Display } from './getDisplay.js';
+import type { ScreenshotsImageResource } from './imageResources.js';
 
 type IpcRendererListener = (
   event: IpcRendererEvent,
@@ -24,6 +25,7 @@ export interface ScreenshotsExtensionOperationData {
   key: string;
   bounds: Bounds | null;
   display: Display;
+  imageResource?: ScreenshotsImageResource;
 }
 
 export interface ScreenshotsRendererEvent {

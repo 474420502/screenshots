@@ -26,6 +26,48 @@ test('mapOperationItemsForRenderer strips runtime handlers before renderer trans
     ]);
 });
 
+test('mapOperationItemsForRenderer applies requiresSelection without leaking it to renderer payloads', () => {
+    const items = [
+        {
+            key: 'ocr',
+            title: 'OCR',
+            requiresSelection: true,
+        },
+        {
+            key: 'ask-ai',
+            title: 'Ask AI',
+            requiresSelection: true,
+            disabled: true,
+        },
+    ];
+
+    assert.deepEqual(mapOperationItemsForRenderer(items, { hasSelection: false }), [
+        {
+            key: 'ocr',
+            title: 'OCR',
+            disabled: true,
+        },
+        {
+            key: 'ask-ai',
+            title: 'Ask AI',
+            disabled: true,
+        },
+    ]);
+
+    assert.deepEqual(mapOperationItemsForRenderer(items, { hasSelection: true }), [
+        {
+            key: 'ocr',
+            title: 'OCR',
+            disabled: false,
+        },
+        {
+            key: 'ask-ai',
+            title: 'Ask AI',
+            disabled: true,
+        },
+    ]);
+});
+
 test('getOperationItemHandlers collects inline handlers by key', () => {
     const ocrHandler = () => 'ocr';
     const askAiHandler = () => 'ask-ai';

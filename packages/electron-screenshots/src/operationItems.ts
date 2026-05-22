@@ -7,10 +7,35 @@ export interface OperationItemWithHandler<THandler>
   handler?: THandler;
 }
 
+export interface OperationItemWithSelectionState
+  extends OperationItemWithKey {
+  disabled?: boolean;
+  requiresSelection?: boolean;
+}
+
 export function mapOperationItemsForRenderer<
-  T extends OperationItemWithHandler<unknown>,
->(items: T[]): Array<Omit<T, 'handler'>> {
-  return items.map(({ handler: _handler, ...item }) => item);
+  T extends OperationItemWithHandler<unknown> & OperationItemWithSelectionState,
+>(
+  items: T[],
+  options?: {
+    hasSelection?: boolean;
+  },
+): Array<Omit<T, 'handler' | 'requiresSelection'>> {
+  const hasSelection = options?.hasSelection ?? false;
+
+  return items.map(({ handler: _handler, requiresSelection, disabled, ...item }) => {
+    const nextItem = {
+      ...item,
+    } as Omit<T, 'handler' | 'requiresSelection'> & {
+      disabled?: boolean;
+    };
+
+    if (typeof disabled !== 'undefined' || requiresSelection) {
+      nextItem.disabled = Boolean(disabled || (requiresSelection && !hasSelection));
+    }
+
+    return nextItem as Omit<T, 'handler' | 'requiresSelection'>;
+  });
 }
 
 export function getOperationItemHandlers<

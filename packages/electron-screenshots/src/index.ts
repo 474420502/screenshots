@@ -80,6 +80,7 @@ export interface ElectronScreenshotsOperationItem {
   handler?: ElectronScreenshotsOperationHandler;
   checked?: boolean;
   disabled?: boolean;
+  requiresSelection?: boolean;
   option?: ElectronScreenshotsOperationOption;
   position?: ScreenshotsOperationPosition;
   includeImage?: boolean;
@@ -156,6 +157,18 @@ export type ElectronScreenshotsOperationItemPatch = Partial<
   Omit<ElectronScreenshotsOperationItem, 'key'>
 >;
 
+export interface ScreenshotsCaptureOptions {
+  timeoutMs?: number;
+  operationItems?: ElectronScreenshotsOperationItem[];
+}
+
+export interface ScreenshotsCaptureResult {
+  buffer: Buffer;
+  data: ScreenshotsData;
+  dataUrl: string;
+  base64: string;
+}
+
 export type {
   Bounds,
   ScreenshotsData,
@@ -178,6 +191,31 @@ const rendererReservedEventNames = new Set([
   'captureReady',
   'extensionOperation',
 ]);
+
+function toError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (typeof error === 'string' && error) {
+    return new Error(error);
+  }
+
+  return new Error(fallbackMessage);
+}
+
+function hasActiveSelection(bounds: Bounds | null | undefined): boolean {
+  return Boolean(
+    bounds && Number(bounds.width) > 0 && Number(bounds.height) > 0,
+  );
+}
+
+interface PendingCaptureSession {
+  resolve: (result: ScreenshotsCaptureResult) => void;
+  reject: (error: Error) => void;
+  restoreOperationItems: ElectronScreenshotsOperationItem[];
+  timeoutId?: NodeJS.Timeout;
+}
 
 export default class Screenshots extends Events {
   // 截图窗口对象
@@ -210,6 +248,10 @@ export default class Screenshots extends Events {
   private forwardEvents: true | string[];
 
   private imageResourceStore = new ImageResourceStore();
+
+  private hasSelection = false;
+
+  private pendingCapture: PendingCaptureSession | null = null;
 
   private isReady = new Promise<void>((resolve) => {
     ipcMain.once('SCREENSHOTS:ready', () => {
@@ -245,6 +287,7 @@ export default class Screenshots extends Events {
    */
   public async startCapture(): Promise<void> {
     this.logger('startCapture');
+    this.hasSelection = false;
 
     const display = getDisplay();
     this.emit('captureStart', new Event(), display);
@@ -259,6 +302,54 @@ export default class Screenshots extends Events {
     );
     this.$view.webContents.send('SCREENSHOTS:capture', display, imageUrl);
     this.emit('captureReady', new Event(), display);
+  }
+
+  /**
+   * 单次截图，返回 Promise 结果而不是走默认写入剪贴板流程
+   */
+  public captureOnce(
+    options?: ScreenshotsCaptureOptions,
+  ): Promise<ScreenshotsCaptureResult> {
+    if (this.pendingCapture) {
+      return Promise.reject(
+        new Error('A captureOnce session is already in progress.'),
+      );
+    }
+
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    const operationItems = options?.operationItems ?? [];
+    const restoreOperationItems = this.operationItems;
+
+    return new Promise<ScreenshotsCaptureResult>((resolve, reject) => {
+      const pendingCapture: PendingCaptureSession = {
+        resolve,
+        reject,
+        restoreOperationItems,
+      };
+
+      if (timeoutMs > 0) {
+        pendingCapture.timeoutId = setTimeout(() => {
+          void this.rejectPendingCapture(
+            new Error('Capture timed out.'),
+            pendingCapture,
+          );
+        }, timeoutMs);
+      }
+
+      this.pendingCapture = pendingCapture;
+
+      void (async () => {
+        try {
+          await this.setOperationItems(operationItems);
+          await this.startCapture();
+        } catch (error) {
+          await this.rejectPendingCapture(
+            toError(error, 'Failed to start captureOnce.'),
+            pendingCapture,
+          );
+        }
+      })();
+    });
   }
 
   /**
@@ -417,6 +508,60 @@ export default class Screenshots extends Events {
     await this.imageResourceStore.clear();
   }
 
+  private toCaptureResult(
+    buffer: Buffer,
+    data: ScreenshotsData,
+  ): ScreenshotsCaptureResult {
+    const base64 = buffer.toString('base64');
+
+    return {
+      buffer,
+      data,
+      base64,
+      dataUrl: `data:image/png;base64,${base64}`,
+    };
+  }
+
+  private async finalizePendingCapture(
+    pendingCapture: PendingCaptureSession,
+  ): Promise<void> {
+    this.hasSelection = false;
+    if (pendingCapture.timeoutId) {
+      clearTimeout(pendingCapture.timeoutId);
+    }
+
+    this.pendingCapture = null;
+
+    try {
+      await this.endCapture();
+    } catch {
+      // ignore endCapture cleanup failures so the promise still settles
+    }
+
+    try {
+      await this.setOperationItems(pendingCapture.restoreOperationItems);
+    } catch {
+      // ignore restore failures; callers can still receive the main result
+    }
+  }
+
+  private async resolvePendingCapture(
+    buffer: Buffer,
+    data: ScreenshotsData,
+    pendingCapture: PendingCaptureSession,
+  ): Promise<void> {
+    await this.finalizePendingCapture(pendingCapture);
+    pendingCapture.resolve(this.toCaptureResult(buffer, data));
+  }
+
+  private async rejectPendingCapture(
+    error: Error,
+    pendingCapture: PendingCaptureSession,
+  ): Promise<void> {
+    await this.finalizePendingCapture(pendingCapture);
+    pendingCapture.reject(error);
+  }
+
   private async replaceOperationItem(
     key: string,
     updater: (
@@ -449,8 +594,12 @@ export default class Screenshots extends Events {
 
   private getRendererOperationItems(
     operationItems: ElectronScreenshotsOperationItem[],
-  ): Array<Omit<ElectronScreenshotsOperationItem, 'handler'>> {
-    return mapOperationItemsForRenderer(operationItems);
+  ): Array<
+    Omit<ElectronScreenshotsOperationItem, 'handler' | 'requiresSelection'>
+  > {
+    return mapOperationItemsForRenderer(operationItems, {
+      hasSelection: this.hasSelection,
+    });
   }
 
   private async clearOperationItemOption(
@@ -722,12 +871,18 @@ export default class Screenshots extends Events {
      */
     ipcMain.on(
       'SCREENSHOTS:ok',
-      (_event, buffer: Buffer, data: ScreenshotsData) => {
+        (_event, buffer: Buffer, data: ScreenshotsData) => {
         this.logger(
           'SCREENSHOTS:ok buffer.length %d, data: %o',
           buffer.length,
           data,
         );
+
+          const pendingCapture = this.pendingCapture;
+          if (pendingCapture) {
+            void this.resolvePendingCapture(buffer, data, pendingCapture);
+            return;
+          }
 
         const event = new Event();
         this.emit('ok', event, buffer, data);
@@ -743,6 +898,15 @@ export default class Screenshots extends Events {
      */
     ipcMain.on('SCREENSHOTS:cancel', () => {
       this.logger('SCREENSHOTS:cancel');
+
+        const pendingCapture = this.pendingCapture;
+        if (pendingCapture) {
+          void this.rejectPendingCapture(
+            new Error('Capture cancelled.'),
+            pendingCapture,
+          );
+          return;
+        }
 
       const event = new Event();
       this.emit('cancel', event);
@@ -869,6 +1033,22 @@ export default class Screenshots extends Events {
     ipcMain.on(
       'SCREENSHOTS:event',
       (_event, rendererEvent: ScreenshotsRendererEvent) => {
+          if (rendererEvent.name === 'selectionChange') {
+            const payload = rendererEvent.payload as
+              | { bounds?: Bounds | null }
+              | undefined;
+            const nextHasSelection = hasActiveSelection(payload?.bounds);
+
+            if (nextHasSelection !== this.hasSelection) {
+              this.hasSelection = nextHasSelection;
+
+              this.$view.webContents.send(
+                'SCREENSHOTS:setOperationItems',
+                this.getRendererOperationItems(this.operationItems),
+              );
+            }
+          }
+
         if (!this.shouldForwardEvent(rendererEvent.name)) {
           return;
         }

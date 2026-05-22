@@ -244,6 +244,7 @@ export interface ElectronScreenshotsOperationItem {
   handler?: ElectronScreenshotsOperationHandler;
   checked?: boolean;
   disabled?: boolean;
+  requiresSelection?: boolean;
   option?: ElectronScreenshotsOperationOption;
   imageResource?: boolean | CreateImageResourceOptions;
   position?:
@@ -324,12 +325,25 @@ export interface ElectronScreenshotsOperationContext {
 export type ElectronScreenshotsOperationHandler = (
   context: ElectronScreenshotsOperationContext,
 ) => unknown | Promise<unknown>;
+
+export interface ScreenshotsCaptureOptions {
+  timeoutMs?: number;
+  operationItems?: ElectronScreenshotsOperationItem[];
+}
+
+export interface ScreenshotsCaptureResult {
+  buffer: Buffer;
+  data: ScreenshotsData;
+  dataUrl: string;
+  base64: string;
+}
 ```
 
 | 名称                                              | 说明             | 返回值 |
 | ------------------------------------------------- | ---------------- | ------ |
 | `constructor(opts: ScreenshotsOpts): Screenshots` | 调用截图方法截图 | -      |
 | `startCapture(): Promise<void>`                   | 调用截图方法截图 | -      |
+| `captureOnce(options?: ScreenshotsCaptureOptions): Promise<ScreenshotsCaptureResult>` | 单次截图并直接返回结果，不走默认写入剪贴板流程 | 截图结果 |
 | `endCapture(): Promise<void>`                     | 手动结束截图     | -      |
 | `setLang(lang: Lang): Promise<void>`              | 修改语言         | -      |
 | `setOperationItems(items: ElectronScreenshotsOperationItem[]): Promise<void>` | 设置扩展工具栏按钮 | - |
@@ -357,6 +371,7 @@ const screenshots = new Screenshots({
       title: "OCR",
       label: "OCR",
       position: "before-confirm",
+      requiresSelection: true,
       imageResource: {
         fileNamePrefix: "ocr",
       },
@@ -395,7 +410,7 @@ const screenshots = new Screenshots({
       key: "ask-ai",
       title: "Analyze with AI",
       label: "AI",
-      disabled: true,
+      requiresSelection: true,
       position: { after: "ocr" },
       includeImage: true,
       async handler(context) {
@@ -444,6 +459,7 @@ screenshots.on("selectionChange", (_event, rendererEvent) => {
 | `handler` | 主进程处理函数，推荐默认使用；点击按钮后库会自动调用它 |
 | `checked` | 按钮是否高亮 |
 | `disabled` | 按钮是否禁用 |
+| `requiresSelection` | 是否要求先有选区；为 `true` 时会在没有选区时自动禁用 |
 | `option` | 可序列化结果面板，适合显示 OCR 文本、模型摘要、结构化元数据 |
 | `imageResource` | 是否自动把截图转换成临时图片资源，支持布尔值或资源创建选项 |
 | `position` | 按钮插入位置，语义与 React 包保持一致 |
@@ -457,19 +473,19 @@ screenshots.on("selectionChange", (_event, rendererEvent) => {
 2. 优先直接给按钮写 `handler(context)`，把业务逻辑、状态更新和结果面板收在一起
 3. 如果按钮有异步处理过程，用 `context.showOption` / `context.update` 控制 `disabled` / `checked` / `option`
 4. 如果需要把截图交给外部 OCR / AI 窗口，优先开启 `imageResource`
-5. 如果需要根据选区状态联动按钮可用性，打开 `forwardEvents`，监听 `selectionChange` 或 `error`
+5. 如果按钮必须依赖用户已经框选内容，优先直接设置 `requiresSelection: true`
+6. 只有在业务规则比“是否已有选区”更复杂时，再打开 `forwardEvents` 自己监听 `selectionChange` / `error`
 
 例如只在用户已经选区时才启用 OCR：
 
 ```ts
 const screenshots = new Screenshots({
-  forwardEvents: ["selectionChange", "error"],
   operationItems: [
     {
       key: "ocr",
       title: "OCR",
       label: "OCR",
-      disabled: true,
+      requiresSelection: true,
       includeImage: false,
       imageResource: {
         fileNamePrefix: "ocr",
@@ -477,15 +493,21 @@ const screenshots = new Screenshots({
     },
   ],
 });
-
-screenshots.on("selectionChange", async (_event, rendererEvent) => {
-  const hasBounds = Boolean(
-    (rendererEvent.payload as { bounds?: unknown } | undefined)?.bounds,
-  );
-
-  await screenshots.updateOperationItem("ocr", { disabled: !hasBounds });
-});
 ```
+
+如果你只想临时打开一次截图 UI，并在确认后直接拿到结果，可以使用：
+
+```ts
+const result = await screenshots.captureOnce({
+  timeoutMs: 30_000,
+});
+
+console.log(result.data.bounds);
+console.log(result.dataUrl);
+console.log(result.base64);
+```
+
+`captureOnce()` 默认会用空的 `operationItems` 启动一次截图流程，这样宿主可以得到更接近“确认后立即返回图片”的标准交互。如果你仍然想在这次单次截图里保留自定义按钮，也可以通过 `options.operationItems` 显式传入。
 
   ### Official Image Resource Handoff
 

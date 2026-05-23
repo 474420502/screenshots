@@ -178,6 +178,7 @@ export interface ScreenshotsOperationButtonItem {
   key: string;
   title: string;
   icon?: string;
+  iconSvg?: string;
   iconNode?: ReactNode;
   label?: string;
   checked?: boolean | ((context: ScreenshotsActionContext) => boolean);

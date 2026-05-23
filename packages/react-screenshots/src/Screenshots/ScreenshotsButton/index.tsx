@@ -6,6 +6,7 @@ import './index.less';
 export interface ScreenshotsButtonProps {
   title: string;
   icon?: string;
+  iconSvg?: string;
   iconNode?: ReactNode;
   label?: string;
   checked?: boolean;
@@ -17,6 +18,7 @@ export interface ScreenshotsButtonProps {
 export default memo(function ScreenshotsButton({
   title,
   icon,
+  iconSvg,
   iconNode,
   label,
   checked,
@@ -43,6 +45,24 @@ export default memo(function ScreenshotsButton({
     classNames.push('screenshots-button-disabled');
   }
 
+  let content: ReactNode = null;
+
+  if (iconNode) {
+    content = iconNode;
+  } else if (iconSvg) {
+    content = (
+      <span
+        className="screenshots-button-svg"
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: iconSvg }}
+      />
+    );
+  } else if (icon) {
+    content = <span className={icon} />;
+  } else if (label) {
+    content = <span className="screenshots-button-label">{label}</span>;
+  }
+
   return (
     <ScreenshotsOption open={checked} content={option}>
       <div
@@ -50,11 +70,7 @@ export default memo(function ScreenshotsButton({
         title={title}
         onClick={onButtonClick}
       >
-        {iconNode ??
-          (icon ? <span className={icon} /> : null) ??
-          (label ? (
-            <span className="screenshots-button-label">{label}</span>
-          ) : null)}
+        {content}
       </div>
     </ScreenshotsOption>
   );

@@ -76,6 +76,7 @@ export interface ElectronScreenshotsOperationItem {
   key: string;
   title: string;
   icon?: string;
+  iconSvg?: string;
   label?: string;
   handler?: ElectronScreenshotsOperationHandler;
   checked?: boolean;

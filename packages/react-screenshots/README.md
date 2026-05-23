@@ -414,7 +414,7 @@ export default function App() {
 
 `ScreenshotsOperationItem` 支持两种类型：
 
-- 按钮项：`{ key, title, icon?, iconNode?, label?, checked?, disabled?, option?, position?, render?, onClick? }`
+- 按钮项：`{ key, title, icon?, iconSvg?, iconNode?, label?, checked?, disabled?, option?, position?, render?, onClick? }`
 - 分隔符：`{ type: "divider", key?, position? }`
 
 常用字段说明：
@@ -423,7 +423,7 @@ export default function App() {
 | ---- | ---- |
 | `key` | 自定义按钮唯一标识，必填，不能与内建按钮重名 |
 | `title` | 鼠标悬停提示文本 |
-| `icon` / `iconNode` / `label` | 按钮视觉表现，三者任选其一或组合 |
+| `icon` / `iconSvg` / `iconNode` / `label` | 按钮视觉表现，四者任选其一或组合；`iconSvg` 适合传可序列化的 SVG 字符串 |
 | `checked` | 按钮激活态，可传布尔值或 `(context) => boolean` |
 | `disabled` | 按钮禁用态，可传布尔值或 `(context) => boolean` |
 | `option` | 按钮激活时显示的浮层内容，可传 `ReactNode` 或函数 |

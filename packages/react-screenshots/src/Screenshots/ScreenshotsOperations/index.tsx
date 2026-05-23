@@ -91,6 +91,7 @@ function ScreenshotsCustomOperation({
     <ScreenshotsButton
       title={item.title}
       icon={item.icon}
+      iconSvg={item.iconSvg}
       iconNode={item.iconNode}
       label={item.label}
       checked={resolveStateValue(item.checked, actionContext)}

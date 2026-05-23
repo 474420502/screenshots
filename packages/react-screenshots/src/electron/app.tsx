@@ -29,6 +29,7 @@ export interface ElectronScreenshotsOperationItem {
   key: string;
   title: string;
   icon?: string;
+  iconSvg?: string;
   label?: string;
   checked?: boolean;
   disabled?: boolean;
@@ -183,6 +184,7 @@ export default function App(): ReactElement {
         key: operationItem.key,
         title: operationItem.title,
         icon: operationItem.icon,
+        iconSvg: operationItem.iconSvg,
         label: operationItem.label,
         checked: operationItem.checked,
         option: renderElectronOperationOption(operationItem.option),

@@ -240,6 +240,7 @@ export interface ElectronScreenshotsOperationItem {
   key: string;
   title: string;
   icon?: string;
+  iconSvg?: string;
   label?: string;
   handler?: ElectronScreenshotsOperationHandler;
   checked?: boolean;
@@ -784,7 +785,7 @@ console.log(result.base64);
 
   如果你的需求已经不只是“点按钮触发主进程任务”，而是要做复杂弹窗、表单、富文本结果面板或多轮对话，建议直接切到 `@474420502/react-screenshots` 自定义渲染层，而不是继续把交互堆在 Electron 按钮描述里。
 
-如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`@474420502/react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。当前支持的动态状态主要是 `checked`、`disabled` 以及通过 `setOperationItems` / `updateOperationItem` 更新可序列化字段。
+如果需要复杂的 React UI、弹窗、表单或自定义渲染函数，建议直接使用`@474420502/react-screenshots`自定义渲染进程页面；Electron 主进程扩展按钮只支持可结构化克隆的数据，不能传函数、DOM、ReactNode 或 Blob。当前支持的动态状态主要是 `checked`、`disabled`、`iconSvg` 以及通过 `setOperationItems` / `updateOperationItem` 更新可序列化字段。
 
 ## Events
 
